@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="3840" viewBox="0 0 3840 3840">
+<!-- Central beginner village: independent transparent building layer -->
+<g stroke="#5b4637" stroke-width="12" stroke-linejoin="round">
+  <g transform="translate(1370 1350)"><rect x="0" y="60" width="250" height="190" rx="8" fill="#d7b47a"/><path d="M-25 70L125-40L275 70Z" fill="#a85d48"/><rect x="35" y="125" width="55" height="125" fill="#6b4d39"/><rect x="145" y="120" width="55" height="55" fill="#86b8c9"/></g>
+  <g transform="translate(1720 1260)"><rect x="0" y="70" width="280" height="205" rx="8" fill="#d4b072"/><path d="M-30 80L140-45L310 80Z" fill="#9f5847"/><rect x="100" y="140" width="75" height="135" fill="#6b4d39"/><rect x="205" y="130" width="45" height="55" fill="#86b8c9"/></g>
+  <g transform="translate(1350 1650)"><rect x="0" y="60" width="220" height="170" fill="#c99d63"/><path d="M-20 70L110-35L240 70Z" fill="#8d4e3f"/><rect x="82" y="120" width="55" height="110" fill="#6b4d39"/></g>
+  <g transform="translate(1730 1650)"><rect x="0" y="60" width="230" height="180" fill="#d8b87c"/><path d="M-20 70L115-35L250 70Z" fill="#9b5545"/><rect x="90" y="125" width="55" height="115" fill="#6b4d39"/></g>
+  <!-- shop -->
+  <g transform="translate(1050 1450)"><rect x="0" y="70" width="230" height="180" fill="#d8bd87"/><path d="M-25 80L115-35L255 80Z" fill="#b16a48"/><path d="M-10 105H240V145H-10Z" fill="#e0a45f"/><rect x="90" y="155" width="55" height="95" fill="#6b4d39"/></g>
+  <!-- training building -->
+  <g transform="translate(2050 1680)"><rect x="0" y="55" width="260" height="190" fill="#c7a36c"/><path d="M-25 65L130-50L285 65Z" fill="#78534a"/><rect x="95" y="130" width="70" height="115" fill="#624837"/></g>
+  <!-- farmhouse -->
+  <g transform="translate(260 2820)"><rect x="0" y="70" width="260" height="190" fill="#c9a46b"/><path d="M-25 80L130-45L285 80Z" fill="#8d5944"/><rect x="100" y="145" width="65" height="115" fill="#654a38"/></g>
+</g>
+<!-- central plaza -->
+<circle cx="1640" cy="1580" r="105" fill="#b9a278" stroke="#6c5a43" stroke-width="12"/>
+<circle cx="1640" cy="1580" r="32" fill="#5d9fc0" stroke="#e5d5aa" stroke-width="10"/>
+</svg>
