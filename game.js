@@ -10,20 +10,40 @@ let activePointerId = null;
 const speed = 4;
 const maxJoystickDistance = 45;
 
-// 建立虛擬搖桿
+// 建立可移動的虛擬搖桿
 const joystick = document.createElement("div");
 const joystickKnob = document.createElement("div");
-
 joystick.className = "joystick";
 joystickKnob.className = "joystick-knob";
 joystick.appendChild(joystickKnob);
 game.appendChild(joystick);
+
+// 搖桿預設隱藏；玩家按下遊戲畫面時，搖桿會出現在按下的位置
+joystick.style.display = "none";
+
+function showJoystick(clientX, clientY) {
+    const rect = game.getBoundingClientRect();
+    const halfSize = joystick.offsetWidth / 2;
+
+    let x = clientX - rect.left;
+    let y = clientY - rect.top;
+
+    // 避免搖桿超出遊戲畫面
+    x = Math.max(halfSize, Math.min(rect.width - halfSize, x));
+    y = Math.max(halfSize, Math.min(rect.height - halfSize, y));
+
+    joystick.style.left = `${x - halfSize}px`;
+    joystick.style.top = `${y - halfSize}px`;
+    joystick.style.bottom = "auto";
+    joystick.style.display = "flex";
+}
 
 function resetJoystick() {
     activePointerId = null;
     joystickX = 0;
     joystickY = 0;
     joystickKnob.style.transform = "translate(0px, 0px)";
+    joystick.style.display = "none";
 }
 
 function moveJoystick(clientX, clientY) {
@@ -45,29 +65,33 @@ function moveJoystick(clientX, clientY) {
     joystickY = dy / maxJoystickDistance;
 }
 
-// 使用 Pointer Events，同時支援滑鼠、觸控與觸控筆
-joystick.addEventListener("pointerdown", (event) => {
+// 點擊/觸控遊戲畫面任何位置，都可以在該位置建立搖桿
+// 點到現有搖桿時則直接控制它
+ game.addEventListener("pointerdown", (event) => {
+    if (activePointerId !== null) return;
+
     activePointerId = event.pointerId;
-    joystick.setPointerCapture(event.pointerId);
+    showJoystick(event.clientX, event.clientY);
+    game.setPointerCapture(event.pointerId);
     moveJoystick(event.clientX, event.clientY);
     event.preventDefault();
 });
 
-joystick.addEventListener("pointermove", (event) => {
+game.addEventListener("pointermove", (event) => {
     if (event.pointerId !== activePointerId) return;
     moveJoystick(event.clientX, event.clientY);
     event.preventDefault();
 });
 
-joystick.addEventListener("pointerup", (event) => {
+game.addEventListener("pointerup", (event) => {
     if (event.pointerId === activePointerId) resetJoystick();
 });
 
-joystick.addEventListener("pointercancel", (event) => {
+game.addEventListener("pointercancel", (event) => {
     if (event.pointerId === activePointerId) resetJoystick();
 });
 
-joystick.addEventListener("lostpointercapture", () => {
+game.addEventListener("lostpointercapture", () => {
     if (activePointerId !== null) resetJoystick();
 });
 
@@ -79,7 +103,6 @@ function updatePlayer() {
     playerX += joystickX * speed;
     playerY += joystickY * speed;
 
-    // 根據實際遊戲畫面大小限制玩家位置，不再寫死 760x460
     playerX = Math.max(0, Math.min(maxX, playerX));
     playerY = Math.max(0, Math.min(maxY, playerY));
 
