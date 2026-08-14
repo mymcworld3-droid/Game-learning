@@ -1,40 +1,68 @@
 const game = document.querySelector(".game");
+const world = document.querySelector(".world");
 const player = document.querySelector(".player");
+const mapPanel = document.querySelector(".map-panel");
+const mapButton = document.querySelector(".map-button");
+const closeMap = document.querySelector("#closeMap");
+const mapPlayerMarker = document.querySelector("#mapPlayerMarker");
+const zoneName = document.querySelector("#zoneName");
+const zoneLevel = document.querySelector("#zoneLevel");
 
-let playerX = 100;
-let playerY = 200;
+const WORLD_WIDTH = 3200;
+const WORLD_HEIGHT = 2200;
+const PLAYER_SIZE = 40;
+const SPEED = 4;
+const MAX_JOYSTICK_DISTANCE = 45;
+
+const spawnPoint = { x: 1580, y: 1510 };
+
+// 預留給未來怪物系統使用的區域
+const monsterZones = [
+    { id: "A", x: 720, y: 1100, radius: 210, level: "Lv.5–10" },
+    { id: "B", x: 1020, y: 1550, radius: 180, level: "Lv.10–15" },
+    { id: "C", x: 2180, y: 780, radius: 210, level: "Lv.15–25" },
+    { id: "D", x: 2550, y: 1000, radius: 190, level: "Lv.20–30" },
+    { id: "E", x: 2200, y: 1450, radius: 220, level: "Lv.25–35" },
+    { id: "F", x: 550, y: 620, radius: 150, level: "Lv.30+" }
+];
+
+const zones = [
+    { name: "新手平原", level: "Lv.1–5", x: 1580, y: 1510 },
+    { name: "迷霧森林", level: "Lv.5–20", x: 720, y: 1100 },
+    { name: "古代遺跡", level: "Lv.20–30", x: 1320, y: 1260 },
+    { name: "熔岩火山", level: "Lv.40+", x: 2140, y: 400 },
+    { name: "黃金沙漠", level: "Lv.25–35", x: 2550, y: 900 },
+    { name: "雪山之巔", level: "Lv.30+", x: 650, y: 420 }
+];
+
+let playerX = spawnPoint.x;
+let playerY = spawnPoint.y;
 let joystickX = 0;
 let joystickY = 0;
 let activePointerId = null;
 
-const speed = 4;
-const maxJoystickDistance = 45;
-
-// 建立可移動的虛擬搖桿
+// ======================
+// 自由位置虛擬搖桿
+// ======================
 const joystick = document.createElement("div");
 const joystickKnob = document.createElement("div");
 joystick.className = "joystick";
 joystickKnob.className = "joystick-knob";
 joystick.appendChild(joystickKnob);
 game.appendChild(joystick);
-
-// 搖桿預設隱藏；玩家按下遊戲畫面時，搖桿會出現在按下的位置
 joystick.style.display = "none";
 
 function showJoystick(clientX, clientY) {
     const rect = game.getBoundingClientRect();
     const halfSize = joystick.offsetWidth / 2;
-
     let x = clientX - rect.left;
     let y = clientY - rect.top;
 
-    // 避免搖桿超出遊戲畫面
     x = Math.max(halfSize, Math.min(rect.width - halfSize, x));
     y = Math.max(halfSize, Math.min(rect.height - halfSize, y));
 
-    joystick.style.left = `${x - halfSize}px`;
-    joystick.style.top = `${y - halfSize}px`;
-    joystick.style.bottom = "auto";
+    joystick.style.left = `${x}px`;
+    joystick.style.top = `${y}px`;
     joystick.style.display = "flex";
 }
 
@@ -50,29 +78,28 @@ function moveJoystick(clientX, clientY) {
     const rect = joystick.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
-
     let dx = clientX - centerX;
     let dy = clientY - centerY;
     const distance = Math.hypot(dx, dy);
 
-    if (distance > maxJoystickDistance) {
-        dx = (dx / distance) * maxJoystickDistance;
-        dy = (dy / distance) * maxJoystickDistance;
+    if (distance > MAX_JOYSTICK_DISTANCE) {
+        dx = (dx / distance) * MAX_JOYSTICK_DISTANCE;
+        dy = (dy / distance) * MAX_JOYSTICK_DISTANCE;
     }
 
     joystickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
-    joystickX = dx / maxJoystickDistance;
-    joystickY = dy / maxJoystickDistance;
+    joystickX = dx / MAX_JOYSTICK_DISTANCE;
+    joystickY = dy / MAX_JOYSTICK_DISTANCE;
 }
 
-// 點擊/觸控遊戲畫面任何位置，都可以在該位置建立搖桿
-// 點到現有搖桿時則直接控制它
- game.addEventListener("pointerdown", (event) => {
+game.addEventListener("pointerdown", (event) => {
+    if (mapPanel.classList.contains("open")) return;
+    if (event.target.closest("button, .map-panel")) return;
     if (activePointerId !== null) return;
 
     activePointerId = event.pointerId;
-    showJoystick(event.clientX, event.clientY);
     game.setPointerCapture(event.pointerId);
+    showJoystick(event.clientX, event.clientY);
     moveJoystick(event.clientX, event.clientY);
     event.preventDefault();
 });
@@ -95,21 +122,77 @@ game.addEventListener("lostpointercapture", () => {
     if (activePointerId !== null) resetJoystick();
 });
 
-// 玩家移動
+// ======================
+// 開放世界鏡頭
+// ======================
+function updateCamera() {
+    const viewWidth = game.clientWidth;
+    const viewHeight = game.clientHeight;
+    const targetX = viewWidth / 2 - (playerX + PLAYER_SIZE / 2);
+    const targetY = viewHeight / 2 - (playerY + PLAYER_SIZE / 2);
+    const minX = Math.min(0, viewWidth - WORLD_WIDTH);
+    const minY = Math.min(0, viewHeight - WORLD_HEIGHT);
+    const cameraX = Math.max(minX, Math.min(0, targetX));
+    const cameraY = Math.max(minY, Math.min(0, targetY));
+
+    world.style.transform = `translate3d(${cameraX}px, ${cameraY}px, 0)`;
+}
+
+function updateZoneInfo() {
+    let nearest = zones[0];
+    let nearestDistance = Infinity;
+
+    for (const zone of zones) {
+        const distance = Math.hypot(playerX - zone.x, playerY - zone.y);
+        if (distance < nearestDistance) {
+            nearest = zone;
+            nearestDistance = distance;
+        }
+    }
+
+    zoneName.textContent = nearest.name;
+    zoneLevel.textContent = nearest.level;
+}
+
+function updateMapMarker() {
+    mapPlayerMarker.style.left = `${(playerX / WORLD_WIDTH) * 100}%`;
+    mapPlayerMarker.style.top = `${(playerY / WORLD_HEIGHT) * 100}%`;
+}
+
+// ======================
+// 世界地圖面板
+// ======================
+mapButton.addEventListener("click", () => {
+    resetJoystick();
+    mapPanel.classList.add("open");
+    mapPanel.setAttribute("aria-hidden", "false");
+    updateMapMarker();
+});
+
+closeMap.addEventListener("click", () => {
+    mapPanel.classList.remove("open");
+    mapPanel.setAttribute("aria-hidden", "true");
+});
+
+// ======================
+// 玩家更新
+// ======================
 function updatePlayer() {
-    const maxX = Math.max(0, game.clientWidth - player.offsetWidth);
-    const maxY = Math.max(0, game.clientHeight - player.offsetHeight);
+    playerX += joystickX * SPEED;
+    playerY += joystickY * SPEED;
 
-    playerX += joystickX * speed;
-    playerY += joystickY * speed;
-
-    playerX = Math.max(0, Math.min(maxX, playerX));
-    playerY = Math.max(0, Math.min(maxY, playerY));
+    playerX = Math.max(0, Math.min(WORLD_WIDTH - PLAYER_SIZE, playerX));
+    playerY = Math.max(0, Math.min(WORLD_HEIGHT - PLAYER_SIZE, playerY));
 
     player.style.left = `${playerX}px`;
     player.style.top = `${playerY}px`;
 
+    updateCamera();
+    updateZoneInfo();
+    updateMapMarker();
     requestAnimationFrame(updatePlayer);
 }
 
+player.style.left = `${spawnPoint.x}px`;
+player.style.top = `${spawnPoint.y}px`;
 updatePlayer();
