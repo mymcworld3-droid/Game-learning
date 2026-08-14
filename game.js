@@ -145,9 +145,13 @@ function updateZoneInfo() {
     zoneLevel.textContent = nearest.level;
 }
 
+// The marker now lives inside the exact 3840x3840 map stack, so its
+// percentage coordinates use the same origin and scale as the real world.
 function updateMapMarker() {
-    mapPlayerMarker.style.left = `${(playerX / WORLD_WIDTH) * 100}%`;
-    mapPlayerMarker.style.top = `${(playerY / WORLD_HEIGHT) * 100}%`;
+    const playerCenterX = playerX + PLAYER_SIZE / 2;
+    const playerCenterY = playerY + PLAYER_SIZE / 2;
+    mapPlayerMarker.style.left = `${(playerCenterX / WORLD_WIDTH) * 100}%`;
+    mapPlayerMarker.style.top = `${(playerCenterY / WORLD_HEIGHT) * 100}%`;
 }
 
 mapButton.addEventListener("click", () => {
