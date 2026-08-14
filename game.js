@@ -39,10 +39,13 @@ let playerX = spawnPoint.x;
 let playerY = spawnPoint.y;
 let joystickX = 0;
 let joystickY = 0;
-let activePointerId = null;
+let joystickPointerId = null;
+const activePointers = new Set();
 
 // ======================
 // 自由位置虛擬搖桿
+// 只有螢幕左下 1/4 區域可以建立搖桿。
+// 使用 Pointer Events 保留多重觸控：第二根手指不會讓第一根手指失效。
 // ======================
 const joystick = document.createElement("div");
 const joystickKnob = document.createElement("div");
@@ -51,6 +54,15 @@ joystickKnob.className = "joystick-knob";
 joystick.appendChild(joystickKnob);
 game.appendChild(joystick);
 joystick.style.display = "none";
+
+function isJoystickZone(clientX, clientY) {
+    const rect = game.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
+    // 左半邊 + 下半邊 = 左下 1/4
+    return x >= 0 && x <= rect.width / 2 && y >= rect.height / 2 && y <= rect.height;
+}
 
 function showJoystick(clientX, clientY) {
     const rect = game.getBoundingClientRect();
@@ -67,7 +79,7 @@ function showJoystick(clientX, clientY) {
 }
 
 function resetJoystick() {
-    activePointerId = null;
+    joystickPointerId = null;
     joystickX = 0;
     joystickY = 0;
     joystickKnob.style.transform = "translate(0px, 0px)";
@@ -93,11 +105,19 @@ function moveJoystick(clientX, clientY) {
 }
 
 game.addEventListener("pointerdown", (event) => {
+    activePointers.add(event.pointerId);
+
     if (mapPanel.classList.contains("open")) return;
     if (event.target.closest("button, .map-panel")) return;
-    if (activePointerId !== null) return;
 
-    activePointerId = event.pointerId;
+    // 只有左下 1/4 可以啟動移動搖桿。
+    // 其他手指仍會被記錄，因此支援同時多指操作。
+    if (!isJoystickZone(event.clientX, event.clientY)) return;
+
+    // 一次只用一根手指控制移動搖桿，其他手指可以同時觸控其他遊戲功能。
+    if (joystickPointerId !== null) return;
+
+    joystickPointerId = event.pointerId;
     game.setPointerCapture(event.pointerId);
     showJoystick(event.clientX, event.clientY);
     moveJoystick(event.clientX, event.clientY);
@@ -105,21 +125,21 @@ game.addEventListener("pointerdown", (event) => {
 });
 
 game.addEventListener("pointermove", (event) => {
-    if (event.pointerId !== activePointerId) return;
+    if (event.pointerId !== joystickPointerId) return;
     moveJoystick(event.clientX, event.clientY);
     event.preventDefault();
 });
 
-game.addEventListener("pointerup", (event) => {
-    if (event.pointerId === activePointerId) resetJoystick();
-});
+function releasePointer(event) {
+    activePointers.delete(event.pointerId);
+    if (event.pointerId === joystickPointerId) resetJoystick();
+}
 
-game.addEventListener("pointercancel", (event) => {
-    if (event.pointerId === activePointerId) resetJoystick();
-});
+game.addEventListener("pointerup", releasePointer);
+game.addEventListener("pointercancel", releasePointer);
 
-game.addEventListener("lostpointercapture", () => {
-    if (activePointerId !== null) resetJoystick();
+game.addEventListener("lostpointercapture", (event) => {
+    if (event.pointerId === joystickPointerId) resetJoystick();
 });
 
 // ======================
@@ -159,9 +179,6 @@ function updateMapMarker() {
     mapPlayerMarker.style.top = `${(playerY / WORLD_HEIGHT) * 100}%`;
 }
 
-// ======================
-// 世界地圖面板
-// ======================
 mapButton.addEventListener("click", () => {
     resetJoystick();
     mapPanel.classList.add("open");
@@ -174,9 +191,6 @@ closeMap.addEventListener("click", () => {
     mapPanel.setAttribute("aria-hidden", "true");
 });
 
-// ======================
-// 玩家更新
-// ======================
 function updatePlayer() {
     playerX += joystickX * SPEED;
     playerY += joystickY * SPEED;
