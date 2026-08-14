@@ -9,11 +9,12 @@
 <body>
     <main class="game" id="game">
         <div class="world" id="world">
-            <div class="map-layer-stack" aria-label="開放世界分層地圖">
-                <img class="world-map map-layer terrain-layer" src="assets/maps/layers/terrain-base.svg" alt="地形">
-                <img class="world-map map-layer nature-layer" src="assets/maps/layers/nature.svg" alt="自然與道路">
-                <img class="world-map map-layer structures-layer" src="assets/maps/layers/structures.svg" alt="建築與設施">
-                <img class="world-map map-layer markers-layer" src="assets/maps/layers/markers.svg" alt="世界標記">
+            <div class="map-layer-stack" aria-label="新手平原分層地圖">
+                <img class="world-map map-layer terrain-layer" src="assets/maps/newbie-plains/terrain.svg" alt="新手平原地形">
+                <img class="world-map map-layer paths-layer" src="assets/maps/newbie-plains/paths.svg" alt="新手平原道路">
+                <img class="world-map map-layer nature-layer" src="assets/maps/newbie-plains/nature.svg" alt="新手平原自然景物">
+                <img class="world-map map-layer buildings-layer" src="assets/maps/newbie-plains/buildings.svg" alt="新手平原建築">
+                <img class="world-map map-layer objects-layer" src="assets/maps/newbie-plains/objects.svg" alt="新手平原物件">
             </div>
             <div class="world-markers" id="worldMarkers"></div>
             <div class="player" id="player" aria-label="玩家"></div>
@@ -29,20 +30,21 @@
 
         <div class="map-panel" id="mapPanel" aria-hidden="true">
             <div class="map-header">
-                <strong>冒險大陸</strong>
+                <strong>新手平原</strong>
                 <button id="closeMap" type="button">×</button>
             </div>
             <div class="map-frame">
-                <div class="map-layer-stack map-ui-stack" aria-label="世界地圖預覽">
-                    <img class="map-layer" src="assets/maps/layers/terrain-base.svg" alt="地形">
-                    <img class="map-layer" src="assets/maps/layers/nature.svg" alt="自然與道路">
-                    <img class="map-layer" src="assets/maps/layers/structures.svg" alt="建築與設施">
-                    <img class="map-layer" src="assets/maps/layers/markers.svg" alt="標記">
+                <div class="map-layer-stack map-ui-stack" aria-label="新手平原地圖預覽">
+                    <img class="map-layer" src="assets/maps/newbie-plains/terrain.svg" alt="地形">
+                    <img class="map-layer" src="assets/maps/newbie-plains/paths.svg" alt="道路">
+                    <img class="map-layer" src="assets/maps/newbie-plains/nature.svg" alt="自然景物">
+                    <img class="map-layer" src="assets/maps/newbie-plains/buildings.svg" alt="建築">
+                    <img class="map-layer" src="assets/maps/newbie-plains/objects.svg" alt="物件">
                 </div>
                 <div class="map-player-marker" id="mapPlayerMarker"></div>
             </div>
             <div class="map-legend">
-                <span>🔵 你的位置</span><span>🔴 怪物區</span><span>🟣 副本</span><span>🟡 任務</span>
+                <span>🔵 你的位置</span><span>🌲 森林</span><span>🏠 新手村</span><span>💧 河谷</span>
             </div>
         </div>
     </main>
