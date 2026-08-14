@@ -10,7 +10,12 @@ const zoneLevel = document.querySelector("#zoneLevel");
 
 const WORLD_WIDTH = 3200;
 const WORLD_HEIGHT = 2200;
-const PLAYER_SIZE = 40;
+const PLAYER_SIZE = 64;
+
+// 目前先把遊戲視野調整成偏 MOBA / 傳說對決的比例：
+// 世界放大後，角色、地形與場景物件都會更容易辨識。
+// 之後製作正式角色素材時，只需要調整這個倍率即可微調視野。
+const CAMERA_ZOOM = 1.45;
 const SPEED = 4;
 const MAX_JOYSTICK_DISTANCE = 45;
 
@@ -60,7 +65,6 @@ function isJoystickZone(clientX, clientY) {
     const x = clientX - rect.left;
     const y = clientY - rect.top;
 
-    // 左半邊 + 下半邊 = 左下 1/4
     return x >= 0 && x <= rect.width / 2 && y >= rect.height / 2 && y <= rect.height;
 }
 
@@ -109,12 +113,7 @@ game.addEventListener("pointerdown", (event) => {
 
     if (mapPanel.classList.contains("open")) return;
     if (event.target.closest("button, .map-panel")) return;
-
-    // 只有左下 1/4 可以啟動移動搖桿。
-    // 其他手指仍會被記錄，因此支援同時多指操作。
     if (!isJoystickZone(event.clientX, event.clientY)) return;
-
-    // 一次只用一根手指控制移動搖桿，其他手指可以同時觸控其他遊戲功能。
     if (joystickPointerId !== null) return;
 
     joystickPointerId = event.pointerId;
@@ -144,18 +143,25 @@ game.addEventListener("lostpointercapture", (event) => {
 
 // ======================
 // 開放世界鏡頭
+// CAMERA_ZOOM 讓世界與角色一起放大，讓畫面比例更接近 MOBA。
+// 鏡頭仍然以玩家為中心，並且會限制在世界邊界內。
 // ======================
 function updateCamera() {
     const viewWidth = game.clientWidth;
     const viewHeight = game.clientHeight;
-    const targetX = viewWidth / 2 - (playerX + PLAYER_SIZE / 2);
-    const targetY = viewHeight / 2 - (playerY + PLAYER_SIZE / 2);
-    const minX = Math.min(0, viewWidth - WORLD_WIDTH);
-    const minY = Math.min(0, viewHeight - WORLD_HEIGHT);
+    const scaledWorldWidth = WORLD_WIDTH * CAMERA_ZOOM;
+    const scaledWorldHeight = WORLD_HEIGHT * CAMERA_ZOOM;
+    const playerCenterX = (playerX + PLAYER_SIZE / 2) * CAMERA_ZOOM;
+    const playerCenterY = (playerY + PLAYER_SIZE / 2) * CAMERA_ZOOM;
+
+    const targetX = viewWidth / 2 - playerCenterX;
+    const targetY = viewHeight / 2 - playerCenterY;
+    const minX = Math.min(0, viewWidth - scaledWorldWidth);
+    const minY = Math.min(0, viewHeight - scaledWorldHeight);
     const cameraX = Math.max(minX, Math.min(0, targetX));
     const cameraY = Math.max(minY, Math.min(0, targetY));
 
-    world.style.transform = `translate3d(${cameraX}px, ${cameraY}px, 0)`;
+    world.style.transform = `translate3d(${cameraX}px, ${cameraY}px, 0) scale(${CAMERA_ZOOM})`;
 }
 
 function updateZoneInfo() {
@@ -207,6 +213,6 @@ function updatePlayer() {
     requestAnimationFrame(updatePlayer);
 }
 
-player.style.left = `${spawnPoint.x}px`;
-player.style.top = `${spawnPoint.y}px`;
+player.style.left = `${playerX}px`;
+player.style.top = `${playerY}px`;
 updatePlayer();
