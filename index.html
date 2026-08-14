@@ -1,29 +1,41 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width,
-                   initial-scale=1.0,
-                   maximum-scale=1.0,
-                   user-scalable=no">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Game Learning</title>
-
     <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
+    <main class="game" id="game">
+        <div class="world" id="world">
+            <img class="world-map" src="map.svg" alt="開放世界地圖">
+            <div class="world-markers" id="worldMarkers"></div>
+            <div class="player" id="player" aria-label="玩家"></div>
+        </div>
 
-    <div class="game">
+        <section class="hud">
+            <div class="zone-info">
+                <strong id="zoneName">新手平原</strong>
+                <span id="zoneLevel">Lv.1–5</span>
+            </div>
+            <button class="map-button" id="mapButton" type="button">地圖</button>
+        </section>
 
-        <div class="player"></div>
-
-    </div>
-
+        <div class="map-panel" id="mapPanel" aria-hidden="true">
+            <div class="map-header">
+                <strong>冒險大陸</strong>
+                <button id="closeMap" type="button">×</button>
+            </div>
+            <div class="map-frame">
+                <img src="map.svg" alt="冒險大陸完整地圖">
+                <div class="map-player-marker" id="mapPlayerMarker"></div>
+            </div>
+            <div class="map-legend">
+                <span>🔵 出生點</span><span>🔴 怪物預留區</span><span>🟣 副本預留</span><span>🟡 任務點</span>
+            </div>
+        </div>
+    </main>
     <script src="game.js"></script>
-
 </body>
-
 </html>
