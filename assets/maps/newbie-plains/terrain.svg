@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="3840" viewBox="0 0 3840 3840">
+<defs>
+  <pattern id="grass" width="160" height="160" patternUnits="userSpaceOnUse"><rect width="160" height="160" fill="#79b85a"/><path d="M20 120l7-14m22 28l5-11m72-5l6-15m18 30l5-10" stroke="#68a84d" stroke-width="5" stroke-linecap="round" opacity=".55"/></pattern>
+  <pattern id="farm" width="120" height="120" patternUnits="userSpaceOnUse"><rect width="120" height="120" fill="#91bf63"/><path d="M0 25H120M0 55H120M0 85H120" stroke="#789e50" stroke-width="9" opacity=".55"/></pattern>
+  <linearGradient id="hill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#9bc96c"/><stop offset="1" stop-color="#6da853"/></linearGradient>
+  <linearGradient id="water" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#69b9d6"/><stop offset="1" stop-color="#4e9fc4"/></linearGradient>
+</defs>
+<!-- Base terrain: 6x6 logical tiles, 640px each. Tile boundaries are intentionally invisible. -->
+<rect width="3840" height="3840" fill="url(#grass)"/>
+<!-- northern forest-edge terrain -->
+<path d="M0 0H3200 Q3400 90 3520 260 Q3600 420 3840 500V0Z" fill="#4f874b" opacity=".9"/>
+<path d="M0 560 Q360 500 700 610 T1400 560 T2100 620 T2800 560 T3400 640 L3400 820 Q3000 760 2600 820 T1800 790 T1000 830 T0 780Z" fill="#70a858" opacity=".8"/>
+<!-- north-east hills -->
+<path d="M2560 0H3840V900Q3500 790 3220 860T2560 720Z" fill="url(#hill)" opacity=".95"/>
+<path d="M2750 80q180-210 360 0q170-250 360 20q150-190 370 20v300H2750Z" fill="#668f55" opacity=".65"/>
+<!-- southern farms -->
+<path d="M0 2700H1250Q1320 3050 1250 3840H0Z" fill="url(#farm)"/>
+<path d="M650 2700v1140M1050 2700v1140" stroke="#789e50" stroke-width="18" opacity=".45"/>
+<!-- river, continuous from north-east to south-east -->
+<path d="M3450-100 C3180 260 3240 600 3450 900 C3610 1130 3340 1350 3410 1600 C3500 1910 3220 2140 3300 2440 C3380 2740 3140 3020 3260 3540 C3310 3700 3300 3800 3320 3940 L3840 3940 L3840-100Z" fill="url(#water)"/>
+<!-- lake in lower-east -->
+<path d="M2550 2700 C2800 2570 3170 2660 3300 2910 C3410 3130 3280 3420 3000 3500 C2730 3570 2460 3390 2400 3150 C2350 2950 2410 2790 2550 2700Z" fill="#58aacb"/>
+<!-- subtle village clearing -->
+<path d="M1250 1000 C1450 900 2130 930 2290 1160 C2420 1350 2350 2150 2110 2290 C1880 2420 1320 2310 1170 2090 C1030 1880 1060 1210 1250 1000Z" fill="#82bd61"/>
+<!-- transition patches, not hard tile seams -->
+<path d="M0 800 Q300 740 600 820T1200 790" fill="none" stroke="#6aa653" stroke-width="80" opacity=".45"/>
+<path d="M0 2650 Q400 2570 800 2660T1300 2640" fill="none" stroke="#789e50" stroke-width="70" opacity=".35"/>
+</svg>
