@@ -9,7 +9,12 @@
 <body>
     <main class="game" id="game">
         <div class="world" id="world">
-            <img class="world-map" src="map.svg" alt="開放世界地圖">
+            <div class="map-layer-stack" aria-label="開放世界分層地圖">
+                <img class="world-map map-layer terrain-layer" src="assets/maps/layers/terrain-base.svg" alt="地形">
+                <img class="world-map map-layer nature-layer" src="assets/maps/layers/nature.svg" alt="自然與道路">
+                <img class="world-map map-layer structures-layer" src="assets/maps/layers/structures.svg" alt="建築與設施">
+                <img class="world-map map-layer markers-layer" src="assets/maps/layers/markers.svg" alt="世界標記">
+            </div>
             <div class="world-markers" id="worldMarkers"></div>
             <div class="player" id="player" aria-label="玩家"></div>
         </div>
@@ -28,11 +33,16 @@
                 <button id="closeMap" type="button">×</button>
             </div>
             <div class="map-frame">
-                <img src="map.svg" alt="冒險大陸完整地圖">
+                <div class="map-layer-stack map-ui-stack" aria-label="世界地圖預覽">
+                    <img class="map-layer" src="assets/maps/layers/terrain-base.svg" alt="地形">
+                    <img class="map-layer" src="assets/maps/layers/nature.svg" alt="自然與道路">
+                    <img class="map-layer" src="assets/maps/layers/structures.svg" alt="建築與設施">
+                    <img class="map-layer" src="assets/maps/layers/markers.svg" alt="標記">
+                </div>
                 <div class="map-player-marker" id="mapPlayerMarker"></div>
             </div>
             <div class="map-legend">
-                <span>🔵 出生點</span><span>🔴 怪物預留區</span><span>🟣 副本預留</span><span>🟡 任務點</span>
+                <span>🔵 你的位置</span><span>🔴 怪物區</span><span>🟣 副本</span><span>🟡 任務</span>
             </div>
         </div>
     </main>
