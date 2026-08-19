@@ -152,9 +152,26 @@ function drawPlayer() {
     const px = player.x;
     const py = player.y;
 
-    // 眼睛動態偏移量計算
-    const eyeOffsetX = dx * eyeMaxOffset;
-    const eyeOffsetY = dy * eyeMaxOffset;
+    /* ==============================================
+       === [修改處 1] 計算方向與角度 ===
+    ============================================== */
+    if (dx !== 0 || dy !== 0) {
+        // 只有當搖桿有推動時，才更新目標角度與平滑過渡
+        let targetAngle = Math.atan2(dy, dx);
+        
+        let angleDiff = targetAngle - handAngle;
+        angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+        handAngle += angleDiff * 0.15; 
+    }
+    // 💡 如果搖桿放開 (dx 與 dy 為 0)，程式就不會進入上面的 if，
+    // handAngle 就會保持在最後的角度，不會再彈回原位！
+
+    /* ==============================================
+       === [修改處 2] 讓眼睛也跟著最後的角度停住 ===
+    ============================================== */
+    // 改用 cos 和 sin 配合 handAngle 來計算眼睛偏移，這樣眼睛也會停在最後看的方向
+    const eyeOffsetX = Math.cos(handAngle) * eyeMaxOffset;
+    const eyeOffsetY = Math.sin(handAngle) * eyeMaxOffset;
 
     // A. 影子
     ctx.fillStyle = "rgba(0,0,0,0.35)";
@@ -181,24 +198,6 @@ function drawPlayer() {
     ctx.beginPath();
     ctx.arc(px + 13 + eyeOffsetX, py - 6 + eyeOffsetY, 4, 0, Math.PI * 2);
     ctx.fill();
-
-    /* ==============================================
-       === [新增處] 計算手部橢圓環繞軌跡 ===
-       利用 atan2 抓出方向角度，再用 cos/sin 畫出軌跡
-    ============================================== */
-    let targetAngle;
-    if (dx !== 0 || dy !== 0) {
-        // 當搖桿有推動時，目標角度朝向搖桿方向
-        targetAngle = Math.atan2(dy, dx);
-    } else {
-        // 搖桿放開時，手放回右下角的預設位置
-        targetAngle = Math.PI / 4;
-    }
-
-    // 處理角度平滑過渡 (避免從 -180 度直接跳到 180 度造成手部閃爍)
-    let angleDiff = targetAngle - handAngle;
-    angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
-    handAngle += angleDiff * 0.15; // 0.15 決定手轉過去的速度
 
     // 設定手部的橢圓軌道半徑 (比身體稍微大一點點，創造環繞感)
     const orbitRx = player.radiusX + 16; 
