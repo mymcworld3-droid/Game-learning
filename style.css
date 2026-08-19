@@ -7,107 +7,16 @@ html, body {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #18212b;
+    background: #263746; /* 畫布底色 */
     font-family: system-ui, sans-serif;
-    touch-action: none;
+    touch-action: none; /* 防止手機滑動干擾 */
 }
 
-/* 遊戲畫面 */
-#game {
-    position: relative;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-    background:
-        linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px),
-        #263746;
-    background-size: 40px 40px;
-}
-
-/* =========================================
-   玩家 (已修改為橢圓形，像史萊姆)
-========================================= */
-#player {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    
-    /* === 修改尺寸：寬大於高 === */
-    width: 62px;
-    height: 48px;
-    
-    transform: translate(-50%, -50%);
-    
-    /* === 修改圓角：橢圓形，下部稍微扁平，更像史萊姆 === */
-    border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-    
-    background: #4ade80;
-    border: 4px solid #166534;
-    box-shadow: 0 5px 15px rgba(0,0,0,.35);
-    transition: transform .03s linear;
-}
-
-/* === 玩家眼睛 (微調位置和大小以適應新形狀，並加上移動偏移效果) === */
-#player::before,
-#player::after {
-    content: "";
-    position: absolute;
-    
-    /* 調整垂直位置 */
-    top: 13px;
-    
-    /* 調整大小 */
-    width: 8px;
-    height: 8px;
-    
-    border-radius: 50%;
-    background: #10251a;
-    
-    /* === [新增處] 讓眼睛偏移更平滑，並定義 transform 基礎 === */
-    transition: transform 0.1s ease-out;
-}
-
-#player::before {
-    /* 調整水平位置，拉近中心 (左眼) */
-    left: 13px;
-    transform: translate(var(--eye-offset-x, 0px), var(--eye-offset-y, 0px));
-}
-
-#player::after {
-    /* 調整水平位置，拉近中心 (右眼) */
-    right: 13px;
-    /* === [修正處] 把原本的 * -1 拿掉！讓兩顆眼睛往同方向看 === */
-    transform: translate(var(--eye-offset-x, 0px), var(--eye-offset-y, 0px));
-}
-
-/* 自由搖桿 */
-#joystick {
-    position: absolute;
-    left: 24px;
-    bottom: 24px;
-    width: 150px;
-    height: 150px;
-    border-radius: 50%;
-    background: rgba(0,0,0,.25);
-    border: 2px solid rgba(255,255,255,.2);
-    box-shadow: inset 0 0 20px rgba(0,0,0,.25);
-    touch-action: none;
-}
-
-/* 搖桿中心 */
-#stick {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 72px;
-    height: 72px;
-    transform: translate(-50%, -50%);
-    border-radius: 50%;
-    background: rgba(255,255,255,.72);
-    border: 3px solid rgba(255,255,255,.9);
-    box-shadow: 0 5px 15px rgba(0,0,0,.3);
-    pointer-events: none;
+/* 遊戲畫布，充滿整個螢幕 */
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
 }
 
 /* 操作提示 */
@@ -122,18 +31,5 @@ html, body {
     color: white;
     font-size: 14px;
     white-space: nowrap;
-}
-
-/* 手機尺寸 */
-@media (max-width: 500px) {
-    #joystick {
-        width: 135px;
-        height: 135px;
-        left: 18px;
-        bottom: 18px;
-    }
-    #stick {
-        width: 66px;
-        height: 66px;
-    }
+    pointer-events: none; /* 讓點擊穿透提示框 */
 }
