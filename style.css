@@ -71,17 +71,14 @@ html, body {
 #player::before {
     /* 調整水平位置，拉近中心 (左眼) */
     left: 13px;
-    
-    /* === [新增處] 應用 JS 算出來的水平和垂直偏移 === */
     transform: translate(var(--eye-offset-x, 0px), var(--eye-offset-y, 0px));
 }
 
 #player::after {
     /* 調整水平位置，拉近中心 (右眼) */
     right: 13px;
-    
-    /* === [新增處] 應用垂直偏移，但水平偏移方向相反以維持雙眼距離 === */
-    transform: translate(calc(var(--eye-offset-x, 0px) * -1), var(--eye-offset-y, 0px));
+    /* === [修正處] 把原本的 * -1 拿掉！讓兩顆眼睛往同方向看 === */
+    transform: translate(var(--eye-offset-x, 0px), var(--eye-offset-y, 0px));
 }
 
 /* 自由搖桿 */
