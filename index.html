@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+<title>自由搖桿角色控制</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #18212b;
+    font-family: system-ui, sans-serif;
+    touch-action: none;
+}
+
+/* 遊戲畫面 */
+#game {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+
+    background:
+        linear-gradient(
+            rgba(255,255,255,.035) 1px,
+            transparent 1px
+        ),
+        linear-gradient(
+            90deg,
+            rgba(255,255,255,.035) 1px,
+            transparent 1px
+        ),
+        #263746;
+
+    background-size: 40px 40px;
+}
+
+/* 玩家 */
+#player {
+    position: absolute;
+
+    left: 50%;
+    top: 50%;
+
+    width: 48px;
+    height: 48px;
+
+    transform: translate(-50%, -50%);
+
+    border-radius: 50%;
+
+    background: #4ade80;
+
+    border: 4px solid #166534;
+
+    box-shadow:
+        0 5px 15px rgba(0,0,0,.35);
+
+    transition: transform .03s linear;
+}
+
+/* 玩家眼睛 */
+#player::before,
+#player::after {
+    content: "";
+
+    position: absolute;
+
+    top: 12px;
+
+    width: 7px;
+    height: 7px;
+
+    border-radius: 50%;
+
+    background: #10251a;
+}
+
+#player::before {
+    left: 10px;
+}
+
+#player::after {
+    right: 10px;
+}
+
+
+/* =========================
+   自由搖桿
+========================= */
+
+#joystick {
+    position: absolute;
+
+    left: 24px;
+    bottom: 24px;
+
+    width: 150px;
+    height: 150px;
+
+    border-radius: 50%;
+
+    background: rgba(0,0,0,.25);
+
+    border: 2px solid rgba(255,255,255,.2);
+
+    box-shadow:
+        inset 0 0 20px rgba(0,0,0,.25);
+
+    touch-action: none;
+}
+
+
+/* 搖桿中心 */
+#stick {
+    position: absolute;
+
+    left: 50%;
+    top: 50%;
+
+    width: 72px;
+    height: 72px;
+
+    transform:
+        translate(-50%, -50%);
+
+    border-radius: 50%;
+
+    background:
+        rgba(255,255,255,.72);
+
+    border:
+        3px solid rgba(255,255,255,.9);
+
+    box-shadow:
+        0 5px 15px rgba(0,0,0,.3);
+
+    pointer-events: none;
+}
+
+
+/* 操作提示 */
+#hint {
+    position: absolute;
+
+    top: 18px;
+    left: 50%;
+
+    transform:
+        translateX(-50%);
+
+    padding: 8px 14px;
+
+    border-radius: 10px;
+
+    background:
+        rgba(0,0,0,.35);
+
+    color: white;
+
+    font-size: 14px;
+
+    white-space: nowrap;
+}
+
+
+/* 手機尺寸 */
+@media (max-width: 500px) {
+
+    #joystick {
+        width: 135px;
+        height: 135px;
+
+        left: 18px;
+        bottom: 18px;
+    }
+
+    #stick {
+        width: 66px;
+        height: 66px;
+    }
+}
+</style>
+</head>
+
+
+<body>
+
+<div id="game">
+    <div id="map"></div>
+
+    <div id="hint">拖動左下角搖桿移動角色</div>
+
+    <div id="player"></div>
+
+    <div id="joystick">
+        <div id="stick"></div>
+    </div>
+</div>
+
+
+<script>
+
+/* =========================
+   取得遊戲物件
+========================= */
+
+const game =
+    document.getElementById("game");
+
+const player =
+    document.getElementById("player");
+
+const joystick =
+    document.getElementById("joystick");
+
+const stick =
+    document.getElementById("stick");
+
+
+/* =========================
+   玩家位置
+========================= */
+
+let x = innerWidth / 2;
+let y = innerHeight / 2;
+
+
+/* =========================
+   搖桿狀態
+========================= */
+
+let active = false;
+
+let dx = 0;
+let dy = 0;
+
+
+/* =========================
+   移動速度
+========================= */
+
+const speed = 4.5;
+
+
+/* 搖桿最大移動距離 */
+
+const maxDistance = 39;
+
+
+/* =========================
+   更新玩家
+========================= */
+
+function updatePlayer() {
+
+    const halfW =
+        player.offsetWidth / 2;
+
+    const halfH =
+        player.offsetHeight / 2;
+
+
+    /*
+        搖桿方向
+        dx = 左右
+        dy = 上下
+    */
+
+    x += dx * speed;
+    y += dy * speed;
+
+
+    /* 防止角色離開畫面 */
+
+    x = Math.max(
+        halfW,
+        Math.min(
+            innerWidth - halfW,
+            x
+        )
+    );
+
+    y = Math.max(
+        halfH,
+        Math.min(
+            innerHeight - halfH,
+            y
+        )
+    );
+
+
+    /* 更新角色位置 */
+
+    player.style.left =
+        x + "px";
+
+    player.style.top =
+        y + "px";
+
+
+    /* 下一幀 */
+
+    requestAnimationFrame(
+        updatePlayer
+    );
+}
+
+
+/* =========================
+   移動搖桿
+========================= */
+
+function moveStick(
+    clientX,
+    clientY
+) {
+
+    const rect =
+        joystick.getBoundingClientRect();
+
+
+    /* 搖桿中心 */
+
+    const cx =
+        rect.left +
+        rect.width / 2;
+
+    const cy =
+        rect.top +
+        rect.height / 2;
+
+
+    /* 計算方向 */
+
+    let vx =
+        clientX - cx;
+
+    let vy =
+        clientY - cy;
+
+
+    /* 距離 */
+
+    const distance =
+        Math.hypot(vx, vy);
+
+
+    /* 限制最大距離 */
+
+    if (
+        distance >
+        maxDistance
+    ) {
+
+        vx =
+            vx /
+            distance *
+            maxDistance;
+
+        vy =
+            vy /
+            distance *
+            maxDistance;
+    }
+
+
+    /* 移動搖桿 */
+
+    stick.style.left =
+        `calc(50% + ${vx}px)`;
+
+    stick.style.top =
+        `calc(50% + ${vy}px)`;
+
+
+    /* 計算方向 */
+
+    dx =
+        vx /
+        maxDistance;
+
+    dy =
+        vy /
+        maxDistance;
+}
+
+
+/* =========================
+   放開搖桿
+========================= */
+
+function resetStick() {
+
+    active = false;
+
+    dx = 0;
+    dy = 0;
+
+
+    /* 搖桿回中心 */
+
+    stick.style.left =
+        "50%";
+
+    stick.style.top =
+        "50%";
+}
+
+
+/* =========================
+   手指按下
+========================= */
+
+joystick.addEventListener(
+    "pointerdown",
+    e => {
+
+        active = true;
+
+        joystick.setPointerCapture(
+            e.pointerId
+        );
+
+        moveStick(
+            e.clientX,
+            e.clientY
+        );
+    }
+);
+
+
+/* =========================
+   手指移動
+========================= */
+
+joystick.addEventListener(
+    "pointermove",
+    e => {
+
+        if (active) {
+
+            moveStick(
+                e.clientX,
+                e.clientY
+            );
+        }
+    }
+);
+
+
+/* =========================
+   手指放開
+========================= */
+
+joystick.addEventListener(
+    "pointerup",
+    resetStick
+);
+
+
+/* 手指取消 */
+
+joystick.addEventListener(
+    "pointercancel",
+    resetStick
+);
+
+
+/* =========================
+   螢幕尺寸改變
+========================= */
+
+addEventListener(
+    "resize",
+    () => {
+
+        x =
+            Math.max(
+                player.offsetWidth / 2,
+
+                Math.min(
+                    innerWidth -
+                    player.offsetWidth / 2,
+                    x
+                )
+            );
+
+
+        y =
+            Math.max(
+                player.offsetHeight / 2,
+
+                Math.min(
+                    innerHeight -
+                    player.offsetHeight / 2,
+                    y
+                )
+            );
+    }
+);
+
+
+/* =========================
+   初始化
+========================= */
+
+player.style.left =
+    x + "px";
+
+player.style.top =
+    y + "px";
+
+
+/* 開始遊戲 */
+
+updatePlayer();
+
+</script>
+
+</body>
+</html>
