@@ -16,14 +16,28 @@ window.addEventListener("resize", () => {
 });
 
 /* =========================
+   載入遊戲圖片素材 (Sprites)
+========================= */
+const sprites = {
+    body: new Image(),
+    eyes: new Image(),
+    hand: new Image()
+};
+
+// 指定圖片路徑 (確保與你的資料夾結構一致)
+sprites.body.src = "asset/body.png";
+sprites.eyes.src = "asset/eyes.png";
+sprites.hand.src = "asset/hand.png";
+
+/* =========================
    遊戲物件狀態
 ========================= */
 // 史萊姆玩家
 const player = {
     x: cw / 2,
     y: ch / 2,
-    radiusX: 31, // 寬度 62 的一半
-    radiusY: 24, // 高度 48 的一半
+    radiusX: 31, // 碰撞體寬度的一半 (維持原比例)
+    radiusY: 24, // 碰撞體高度的一半 (維持原比例)
     speed: 4.5,
     
     // 玩家戰鬥數值
@@ -129,7 +143,6 @@ function update() {
     }
 
     // 3. 更新 UI 數值與緩衝動畫
-    // 處理血條的白色緩衝動畫 (讓 displayHp 平滑跟隨 hp)
     if (player.displayHp > player.hp) {
         player.displayHp -= (player.displayHp - player.hp) * 0.08; 
         if (player.displayHp - player.hp < 0.5) player.displayHp = player.hp; 
@@ -155,10 +168,10 @@ function draw() {
     for (let y = 0; y < ch; y += 40) { ctx.moveTo(0, y); ctx.lineTo(cw, y); }
     ctx.stroke();
 
-    // 2. 繪製玩家 (史萊姆)
+    // 2. 繪製玩家 (史萊姆圖片渲染)
     drawPlayer();
 
-    // === [修改處] 3. 繪製玩家頭頂的 UI ===
+    // 3. 繪製玩家頭頂的 UI
     drawPlayerUI();
 
     // 4. 繪製搖桿
@@ -170,86 +183,69 @@ function draw() {
 /* =========================
    繪製函式細節
 ========================= */
-// === [修改處] 繪製跟隨在頭頂的 UI ===
 function drawPlayerUI() {
-    // 尺寸全部縮小，適應角色大小
-    const levelRadius = 11; // 等級圓圈縮小
-    const barWidth = 54;    // 血條長度縮短
-    const hpHeight = 7;     // 血條高度變細
-    const energyHeight = 3; // 能量條更細
-    const barSpacing = 2;   // 間距縮小
-    const gap = 5;          // 圓圈與血條的距離
+    const levelRadius = 11; 
+    const barWidth = 54;    
+    const hpHeight = 7;     
+    const energyHeight = 3; 
+    const barSpacing = 2;   
+    const gap = 5;          
 
-    // 計算整個 UI 組合的總寬度，用來完美的水平置中於玩家頭上
     const totalWidth = (levelRadius * 2) + gap + barWidth;
-    
-    // UI 起始 X 座標 (玩家中心向左推總寬度的一半)
     const startX = player.x - (totalWidth / 2);
     
-    // 圓心座標：水平根據 startX 加上半徑，垂直則放在玩家頭頂上方約 32px 處
     const cx = startX + levelRadius;
     const cy = player.y - player.radiusY - 32; 
 
-    /* --- 1. 繪製長條圖 (在圓圈右側) --- */
+    /* --- 1. 繪製長條圖 --- */
     const barStartX = cx + levelRadius + gap;
     const barStartY = cy - (hpHeight + energyHeight + barSpacing) / 2;
 
-    // [HP 背景] 深灰色
     ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
     ctx.fillRect(barStartX, barStartY, barWidth, hpHeight);
 
-    // [HP 白色緩衝區] 
     const displayHpRatio = player.displayHp / player.maxHp;
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(barStartX, barStartY, barWidth * displayHpRatio, hpHeight);
 
-    // [HP 當前血量] 紅色
     const hpRatio = player.hp / player.maxHp;
     ctx.fillStyle = "#e74c3c";
     ctx.fillRect(barStartX, barStartY, barWidth * hpRatio, hpHeight);
 
-    // [HP 邊框]
     ctx.strokeStyle = "rgba(0,0,0,0.8)";
     ctx.lineWidth = 1.5;
     ctx.strokeRect(barStartX, barStartY, barWidth, hpHeight);
 
-
-    // [能量 背景] 深灰色
     const energyStartY = barStartY + hpHeight + barSpacing;
     ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
     ctx.fillRect(barStartX, energyStartY, barWidth, energyHeight);
 
-    // [能量 當前值] 橘色
     const energyRatio = player.energy / player.maxEnergy;
-    ctx.fillStyle = "#f39c12"; // 橘色
+    ctx.fillStyle = "#f39c12"; 
     ctx.fillRect(barStartX, energyStartY, barWidth * energyRatio, energyHeight);
 
-    // [能量 邊框]
     ctx.strokeStyle = "rgba(0,0,0,0.8)";
-    ctx.lineWidth = 1; // 邊框變細一點
+    ctx.lineWidth = 1; 
     ctx.strokeRect(barStartX, energyStartY, barWidth, energyHeight);
 
-
     /* --- 2. 繪製等級圓圈 --- */
-    ctx.fillStyle = "#2c3e50"; // 圓圈底色
+    ctx.fillStyle = "#2c3e50"; 
     ctx.beginPath();
     ctx.arc(cx, cy, levelRadius, 0, Math.PI * 2);
     ctx.fill();
 
-    // 圓圈邊框
-    ctx.strokeStyle = "#f1c40f"; // 金色
-    ctx.lineWidth = 2.5; // 邊框稍微改細
+    ctx.strokeStyle = "#f1c40f"; 
+    ctx.lineWidth = 2.5; 
     ctx.stroke();
 
-    // 圓圈內的數字 (等級)
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 13px system-ui, sans-serif"; // 字體縮小
+    ctx.font = "bold 13px system-ui, sans-serif"; 
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(player.level, cx, cy + 1); // +1 為了視覺稍微向下對齊
+    ctx.fillText(player.level, cx, cy + 1); 
 }
 
-
+// === [重點修改處] 使用圖片渲染取代原本的繪圖 ===
 function drawPlayer() {
     const px = player.x;
     const py = player.y;
@@ -264,46 +260,36 @@ function drawPlayer() {
     const eyeOffsetX = Math.cos(handAngle) * eyeMaxOffset;
     const eyeOffsetY = Math.sin(handAngle) * eyeMaxOffset;
 
-    // A. 影子
+    // A. 影子 (保留 Canvas 繪製，因為影子很簡單且半透明)
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.beginPath();
     ctx.ellipse(px, py + 12, player.radiusX, player.radiusY - 8, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // B. 史萊姆身體 (橢圓)
-    ctx.fillStyle = "#4ade80";
-    ctx.strokeStyle = "#166534";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.ellipse(px, py, player.radiusX, player.radiusY, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    // B. 史萊姆身體圖片
+    // 繪製大小是 70x56 (將我們先前產生的 8 倍圖縮放回原尺寸)
+    if (sprites.body.complete) {
+        ctx.drawImage(sprites.body, px - 35, py - 28, 70, 56);
+    }
 
-    // C. 眼睛 (左眼與右眼)
-    ctx.fillStyle = "#10251a";
-    // 左眼
-    ctx.beginPath();
-    ctx.arc(px - 13 + eyeOffsetX, py - 6 + eyeOffsetY, 4, 0, Math.PI * 2);
-    ctx.fill();
-    // 右眼
-    ctx.beginPath();
-    ctx.arc(px + 13 + eyeOffsetX, py - 6 + eyeOffsetY, 4, 0, Math.PI * 2);
-    ctx.fill();
+    // C. 史萊姆雙眼圖片
+    // 繪製大小是 38x12，並加上隨搖桿改變的眼球偏移 (eyeOffsetX/Y)
+    if (sprites.eyes.complete) {
+        // 中心點大約在頭部偏上方 (py - 12)
+        ctx.drawImage(sprites.eyes, px - 19 + eyeOffsetX, py - 12 + eyeOffsetY, 38, 12);
+    }
 
-    // 手部的橢圓軌道
+    // 手部的橢圓軌道計算
     const orbitRx = player.radiusX + 16; 
     const orbitRy = player.radiusY + 16; 
     const handX = px + Math.cos(handAngle) * orbitRx;
     const handY = py + Math.sin(handAngle) * orbitRy;
 
-    // D. 繪製圓形手
-    ctx.fillStyle = "#4ade80";
-    ctx.strokeStyle = "#166534";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(handX, handY, 6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    // D. 史萊姆圓形手圖片
+    // 繪製大小是 20x20
+    if (sprites.hand.complete) {
+        ctx.drawImage(sprites.hand, handX - 10, handY - 10, 20, 20);
+    }
 }
 
 function drawJoystick() {
@@ -330,21 +316,16 @@ function drawJoystick() {
     ctx.globalAlpha = 1.0;
 }
 
-
 /* =========================
    展示用：測試傷害與等級機制
 ========================= */
-// 為了讓你看到白色扣血特效，這裡設定每 3 秒自動扣一次血與能量
 setInterval(() => {
-    // 隨機扣除 15 ~ 45 點血量
     const damage = Math.floor(Math.random() * 30 + 15);
     player.hp -= damage;
 
-    // 消耗 40 點能量 (能量會自動回復)
     player.energy -= 40;
     if (player.energy < 0) player.energy = 0;
     
-    // 如果血量歸零，模擬升級並補滿血
     if (player.hp <= 0) {
         player.hp = player.maxHp;
         player.level += 1;
