@@ -33,13 +33,13 @@ html, body {
     left: 50%;
     top: 50%;
     
-    /* === [修改處] === 修改尺寸：寬大於高 */
+    /* === 修改尺寸：寬大於高 === */
     width: 62px;
     height: 48px;
     
     transform: translate(-50%, -50%);
     
-    /* === [修改處] === 修改圓角：橢圓形，下部稍微扁平，更像史萊姆 */
+    /* === 修改圓角：橢圓形，下部稍微扁平，更像史萊姆 === */
     border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
     
     background: #4ade80;
@@ -48,7 +48,7 @@ html, body {
     transition: transform .03s linear;
 }
 
-/* === [修改處] === 玩家眼睛 (微調位置和大小以適應新形狀) */
+/* === 玩家眼睛 (微調位置和大小以適應新形狀，並加上移動偏移效果) === */
 #player::before,
 #player::after {
     content: "";
@@ -63,16 +63,25 @@ html, body {
     
     border-radius: 50%;
     background: #10251a;
+    
+    /* === [新增處] 讓眼睛偏移更平滑，並定義 transform 基礎 === */
+    transition: transform 0.1s ease-out;
 }
 
 #player::before {
-    /* 調整水平位置，拉近中心 */
+    /* 調整水平位置，拉近中心 (左眼) */
     left: 13px;
+    
+    /* === [新增處] 應用 JS 算出來的水平和垂直偏移 === */
+    transform: translate(var(--eye-offset-x, 0px), var(--eye-offset-y, 0px));
 }
 
 #player::after {
-    /* 調整水平位置，拉近中心 */
+    /* 調整水平位置，拉近中心 (右眼) */
     right: 13px;
+    
+    /* === [新增處] 應用垂直偏移，但水平偏移方向相反以維持雙眼距離 === */
+    transform: translate(calc(var(--eye-offset-x, 0px) * -1), var(--eye-offset-y, 0px));
 }
 
 /* 自由搖桿 */
