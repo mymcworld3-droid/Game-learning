@@ -49,7 +49,39 @@ function updatePlayer() {
 }
 
 /* =========================
-   放開搖桿 (新增：放開時隱藏搖桿)
+   移動搖桿 (剛剛就是遺失了這段！)
+========================= */
+function moveStick(clientX, clientY) {
+    const rect = joystick.getBoundingClientRect();
+
+    /* 搖桿中心 */
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+
+    /* 計算方向 */
+    let vx = clientX - cx;
+    let vy = clientY - cy;
+
+    /* 距離 */
+    const distance = Math.hypot(vx, vy);
+
+    /* 限制最大距離 */
+    if (distance > maxDistance) {
+        vx = vx / distance * maxDistance;
+        vy = vy / distance * maxDistance;
+    }
+
+    /* 移動搖桿視覺 */
+    stick.style.left = `calc(50% + ${vx}px)`;
+    stick.style.top = `calc(50% + ${vy}px)`;
+
+    /* 計算移動方向比例給角色使用 */
+    dx = vx / maxDistance;
+    dy = vy / maxDistance;
+}
+
+/* =========================
+   放開搖桿
 ========================= */
 function resetStick() {
     active = false;
@@ -65,7 +97,7 @@ function resetStick() {
 }
 
 /* =========================
-   手指按下 (修改：綁定到 game，並動態定位搖桿)
+   手指按下
 ========================= */
 game.addEventListener("pointerdown", e => {
     active = true;
@@ -87,7 +119,7 @@ game.addEventListener("pointerdown", e => {
 });
 
 /* =========================
-   手指移動 (修改：綁定到 game)
+   手指移動
 ========================= */
 game.addEventListener("pointermove", e => {
     if (active) {
@@ -96,17 +128,11 @@ game.addEventListener("pointermove", e => {
 });
 
 /* =========================
-   手指放開或取消 (修改：綁定到 game)
+   手指放開或取消
 ========================= */
 game.addEventListener("pointerup", resetStick);
 game.addEventListener("pointercancel", resetStick);
 
-/* =========================
-   初始化 (新增：設定搖桿初始隱藏與漸變動畫)
-========================= */
-/* 請把這兩行加在腳本最底部，原本初始化 player 位置的附近 */
-joystick.style.opacity = "0";
-joystick.style.transition = "opacity 0.15s ease-out";
 /* =========================
    螢幕尺寸改變
 ========================= */
@@ -118,6 +144,10 @@ addEventListener("resize", () => {
 /* =========================
    初始化
 ========================= */
+/* 設定搖桿初始隱藏與漸變動畫 */
+joystick.style.opacity = "0";
+joystick.style.transition = "opacity 0.15s ease-out";
+
 player.style.left = x + "px";
 player.style.top = y + "px";
 
