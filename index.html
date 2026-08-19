@@ -27,20 +27,27 @@ html, body {
     width: 100vw;
     height: 100vh;
     overflow: hidden;
+    background: #18212b; /* 保留底色 */
+}
 
+#map {
+    position: absolute;
+    /* 把地圖做大一點，以免傾斜後看到邊界 */
+    width: 200vw;
+    height: 200vh;
+    left: -50vw;
+    top: -50vh;
+    
     background:
-        linear-gradient(
-            rgba(255,255,255,.035) 1px,
-            transparent 1px
-        ),
-        linear-gradient(
-            90deg,
-            rgba(255,255,255,.035) 1px,
-            transparent 1px
-        ),
+        linear-gradient(rgba(255,255,255,.05) 2px, transparent 2px),
+        linear-gradient(90deg, rgba(255,255,255,.05) 2px, transparent 2px),
         #263746;
+    background-size: 60px 60px;
 
-    background-size: 40px 40px;
+    /* 關鍵字：加上透視與 X 軸旋轉產生 2.5D 效果 */
+    transform: perspective(800px) rotateX(55deg);
+    transform-origin: center center;
+    z-index: 0;
 }
 
 /* 玩家 */
