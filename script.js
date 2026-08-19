@@ -26,7 +26,7 @@ const player = {
     radiusY: 24, // 高度 48 的一半
     speed: 4.5,
     
-    // === [新增] 玩家戰鬥數值 ===
+    // 玩家戰鬥數值
     level: 1,
     hp: 100,
     maxHp: 100,
@@ -128,13 +128,13 @@ function update() {
         joystick.opacity = Math.max(0, joystick.opacity - 0.15);
     }
 
-    // === [新增] 3. 更新 UI 數值與緩衝動畫 ===
+    // 3. 更新 UI 數值與緩衝動畫
     // 處理血條的白色緩衝動畫 (讓 displayHp 平滑跟隨 hp)
     if (player.displayHp > player.hp) {
-        player.displayHp -= (player.displayHp - player.hp) * 0.08; // 0.08 控制殘影消失的速度
+        player.displayHp -= (player.displayHp - player.hp) * 0.08; 
         if (player.displayHp - player.hp < 0.5) player.displayHp = player.hp; 
     } else {
-        player.displayHp = player.hp; // 回血時不顯示白色，直接跟上
+        player.displayHp = player.hp; 
     }
 
     // 能量自動回復
@@ -158,54 +158,59 @@ function draw() {
     // 2. 繪製玩家 (史萊姆)
     drawPlayer();
 
-    // 3. 繪製搖桿
+    // === [修改處] 3. 繪製玩家頭頂的 UI ===
+    drawPlayerUI();
+
+    // 4. 繪製搖桿
     if (joystick.opacity > 0) {
         drawJoystick();
     }
-
-    // === [新增] 4. 繪製畫面上方的 HUD (血條、能量、等級) ===
-    drawHUD();
 }
 
 /* =========================
    繪製函式細節
 ========================= */
-// === [新增] 繪製 HUD 介面 ===
-function drawHUD() {
-    const hudX = 20; // 距離螢幕左邊的邊距
-    const hudY = 24; // 距離螢幕上面的邊距
+// === [修改處] 繪製跟隨在頭頂的 UI ===
+function drawPlayerUI() {
+    // 尺寸全部縮小，適應角色大小
+    const levelRadius = 11; // 等級圓圈縮小
+    const barWidth = 54;    // 血條長度縮短
+    const hpHeight = 7;     // 血條高度變細
+    const energyHeight = 3; // 能量條更細
+    const barSpacing = 2;   // 間距縮小
+    const gap = 5;          // 圓圈與血條的距離
 
-    const levelRadius = 22; // 等級圓圈半徑
-    const barWidth = 180;   // 血條長度
-    const hpHeight = 16;    // 血條高度
-    const energyHeight = 6; // 能量條高度 (較細)
-    const barSpacing = 6;   // 血條與能量條的間距
-
-    // 計算圓心座標
-    const cx = hudX + levelRadius;
-    const cy = hudY + levelRadius;
+    // 計算整個 UI 組合的總寬度，用來完美的水平置中於玩家頭上
+    const totalWidth = (levelRadius * 2) + gap + barWidth;
+    
+    // UI 起始 X 座標 (玩家中心向左推總寬度的一半)
+    const startX = player.x - (totalWidth / 2);
+    
+    // 圓心座標：水平根據 startX 加上半徑，垂直則放在玩家頭頂上方約 32px 處
+    const cx = startX + levelRadius;
+    const cy = player.y - player.radiusY - 32; 
 
     /* --- 1. 繪製長條圖 (在圓圈右側) --- */
-    const barStartX = cx + levelRadius + 8; // 圓圈右邊再空 8px
-    const barStartY = cy - (hpHeight + energyHeight + barSpacing) / 2; // 置中對齊圓圈
+    const barStartX = cx + levelRadius + gap;
+    const barStartY = cy - (hpHeight + energyHeight + barSpacing) / 2;
 
     // [HP 背景] 深灰色
     ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
     ctx.fillRect(barStartX, barStartY, barWidth, hpHeight);
 
-    // [HP 白色緩衝區] (負責顯示劇降殘影)
+    // [HP 白色緩衝區] 
     const displayHpRatio = player.displayHp / player.maxHp;
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(barStartX, barStartY, barWidth * displayHpRatio, hpHeight);
 
-    // [HP 當前血量] 紅色 (直接畫在白色上面)
+    // [HP 當前血量] 紅色
     const hpRatio = player.hp / player.maxHp;
     ctx.fillStyle = "#e74c3c";
     ctx.fillRect(barStartX, barStartY, barWidth * hpRatio, hpHeight);
 
     // [HP 邊框]
     ctx.strokeStyle = "rgba(0,0,0,0.8)";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.strokeRect(barStartX, barStartY, barWidth, hpHeight);
 
 
@@ -221,24 +226,24 @@ function drawHUD() {
 
     // [能量 邊框]
     ctx.strokeStyle = "rgba(0,0,0,0.8)";
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1; // 邊框變細一點
     ctx.strokeRect(barStartX, energyStartY, barWidth, energyHeight);
 
 
-    /* --- 2. 繪製等級圓圈 (後畫，這樣可以稍微疊在血條上產生層次) --- */
-    ctx.fillStyle = "#2c3e50"; // 圓圈底色 (深藍灰)
+    /* --- 2. 繪製等級圓圈 --- */
+    ctx.fillStyle = "#2c3e50"; // 圓圈底色
     ctx.beginPath();
     ctx.arc(cx, cy, levelRadius, 0, Math.PI * 2);
     ctx.fill();
 
     // 圓圈邊框
     ctx.strokeStyle = "#f1c40f"; // 金色
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.5; // 邊框稍微改細
     ctx.stroke();
 
     // 圓圈內的數字 (等級)
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 20px system-ui, sans-serif";
+    ctx.font = "bold 13px system-ui, sans-serif"; // 字體縮小
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(player.level, cx, cy + 1); // +1 為了視覺稍微向下對齊
