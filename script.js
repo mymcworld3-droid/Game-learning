@@ -10,7 +10,6 @@ let ch = canvas.height = window.innerHeight;
 window.addEventListener("resize", () => {
     cw = canvas.width = window.innerWidth;
     ch = canvas.height = window.innerHeight;
-    // 確保改變視窗時角色不會跑出界
     player.x = Math.max(player.radiusX, Math.min(cw - player.radiusX, player.x));
     player.y = Math.max(player.radiusY, Math.min(ch - player.radiusY, player.y));
 });
@@ -24,7 +23,6 @@ const sprites = {
     hand: new Image()
 };
 
-// 指定圖片路徑 (確保與你的資料夾結構一致)
 sprites.body.src = "asset/body.png";
 sprites.eyes.src = "asset/eyes.png";
 sprites.hand.src = "asset/hand.png";
@@ -36,86 +34,130 @@ sprites.hand.src = "asset/hand.png";
 const player = {
     x: cw / 2,
     y: ch / 2,
-    radiusX: 31, // 碰撞體寬度的一半 (維持原比例)
-    radiusY: 24, // 碰撞體高度的一半 (維持原比例)
+    radiusX: 31, 
+    radiusY: 24, 
     
-    // === [修改處] 玩家基礎戰鬥數值 ===
+    // 玩家基礎戰鬥數值
     level: 1,
-    hp: 1145,         // 基礎血量 1145
+    hp: 1145,         
     maxHp: 1145,
-    displayHp: 1145,  // 用於製作扣血時的「白色緩衝殘影」效果
-    atk: 66,          // 基礎攻擊力 66
-    spd: 650,         // 基礎速度 650 (這會轉換為實際畫布移動像素)
+    displayHp: 1145,  
+    atk: 66,          
+    spd: 650,         
     energy: 100,
-    maxEnergy: 100
+    maxEnergy: 100,
+
+    // === [新增] 攻擊機制屬性 ===
+    atkSpeed: 500,    // 攻速 0.5 秒 (500毫秒)
+    lastAtkTime: 0    // 記錄上次攻擊時間
 };
 
-// 自由搖桿
-const joystick = {
-    active: false,
-    originX: 0,
-    originY: 0,
-    stickX: 0,
-    stickY: 0,
-    maxDistance: 39,
-    opacity: 0 // 用於淡入淡出動畫
-};
+// === [修改處] 雙搖桿系統狀態 ===
+const moveJoy = { active: false, originX: 0, originY: 0, stickX: 0, stickY: 0, maxDist: 39, opacity: 0 };
+const atkJoy  = { active: false, originX: 0, originY: 0, stickX: 0, stickY: 0, maxDist: 39, opacity: 0, angle: 0, isDragging: false };
 
-// 全域方向向量 (-1 到 1)
 let dx = 0;
 let dy = 0;
-
-// 偏移設定
 const eyeMaxOffset = 5;
-
-// 手部環繞角度追蹤
 let handAngle = Math.PI / 4; 
 
+// 追蹤多點觸控的 ID
+let movePointerId = null;
+let atkPointerId = null;
+
+// === [新增] 儲存普攻特效的陣列 ===
+const attacks = [];
+
 /* =========================
-   輸入監聽 (直接綁定 Canvas)
+   輸入監聽 (支援多點觸控的雙搖桿)
 ========================= */
 canvas.addEventListener("pointerdown", e => {
-    joystick.active = true;
     canvas.setPointerCapture(e.pointerId);
 
-    joystick.originX = e.clientX;
-    joystick.originY = e.clientY;
-    joystick.stickX = e.clientX;
-    joystick.stickY = e.clientY;
-    
-    updateJoystick(e.clientX, e.clientY);
+    // 判斷落點是否在「左下四分之一」 (移動)
+    if (e.clientX < cw / 2 && e.clientY > ch / 2) {
+        if (movePointerId === null) {
+            movePointerId = e.pointerId;
+            moveJoy.active = true;
+            moveJoy.originX = e.clientX; moveJoy.originY = e.clientY;
+            moveJoy.stickX = e.clientX; moveJoy.stickY = e.clientY;
+            updateMoveJoy(e.clientX, e.clientY);
+        }
+    }
+    // 判斷落點是否在「右下四分之一」 (攻擊)
+    else if (e.clientX > cw / 2 && e.clientY > ch / 2) {
+        if (atkPointerId === null) {
+            atkPointerId = e.pointerId;
+            atkJoy.active = true;
+            atkJoy.originX = e.clientX; atkJoy.originY = e.clientY;
+            atkJoy.stickX = e.clientX; atkJoy.stickY = e.clientY;
+            atkJoy.angle = handAngle; // 預設攻擊方向為當前面向方向
+            atkJoy.isDragging = false;
+            updateAtkJoy(e.clientX, e.clientY);
+        }
+    }
 });
 
 canvas.addEventListener("pointermove", e => {
-    if (joystick.active) {
-        updateJoystick(e.clientX, e.clientY);
+    if (e.pointerId === movePointerId && moveJoy.active) {
+        updateMoveJoy(e.clientX, e.clientY);
+    } else if (e.pointerId === atkPointerId && atkJoy.active) {
+        updateAtkJoy(e.clientX, e.clientY);
     }
 });
 
-function releaseStick() {
-    joystick.active = false;
-    dx = 0;
-    dy = 0;
+function handlePointerUp(e) {
+    if (e.pointerId === movePointerId) {
+        moveJoy.active = false;
+        movePointerId = null;
+        dx = 0; dy = 0;
+    } else if (e.pointerId === atkPointerId) {
+        atkJoy.active = false;
+        atkPointerId = null;
+        atkJoy.isDragging = false;
+    }
 }
 
-canvas.addEventListener("pointerup", releaseStick);
-canvas.addEventListener("pointercancel", releaseStick);
+canvas.addEventListener("pointerup", handlePointerUp);
+canvas.addEventListener("pointercancel", handlePointerUp);
+canvas.addEventListener("pointerout", handlePointerUp);
 
-function updateJoystick(clientX, clientY) {
-    let vx = clientX - joystick.originX;
-    let vy = clientY - joystick.originY;
-    const distance = Math.hypot(vx, vy);
+function updateMoveJoy(cx, cy) {
+    let vx = cx - moveJoy.originX;
+    let vy = cy - moveJoy.originY;
+    const dist = Math.hypot(vx, vy);
 
-    if (distance > joystick.maxDistance) {
-        vx = (vx / distance) * joystick.maxDistance;
-        vy = (vy / distance) * joystick.maxDistance;
+    if (dist > moveJoy.maxDist) {
+        vx = (vx / dist) * moveJoy.maxDist;
+        vy = (vy / dist) * moveJoy.maxDist;
     }
 
-    joystick.stickX = joystick.originX + vx;
-    joystick.stickY = joystick.originY + vy;
+    moveJoy.stickX = moveJoy.originX + vx;
+    moveJoy.stickY = moveJoy.originY + vy;
+    dx = vx / moveJoy.maxDist;
+    dy = vy / moveJoy.maxDist;
+}
 
-    dx = vx / joystick.maxDistance;
-    dy = vy / joystick.maxDistance;
+function updateAtkJoy(cx, cy) {
+    let vx = cx - atkJoy.originX;
+    let vy = cy - atkJoy.originY;
+    const dist = Math.hypot(vx, vy);
+
+    if (dist > atkJoy.maxDist) {
+        vx = (vx / dist) * atkJoy.maxDist;
+        vy = (vy / dist) * atkJoy.maxDist;
+    }
+
+    atkJoy.stickX = atkJoy.originX + vx;
+    atkJoy.stickY = atkJoy.originY + vy;
+
+    // 當攻擊搖桿拖曳超過 5px 時，判定為瞄準模式
+    if (dist > 5) {
+        atkJoy.isDragging = true;
+        atkJoy.angle = Math.atan2(vy, vx);
+    } else {
+        atkJoy.isDragging = false;
+    }
 }
 
 /* =========================
@@ -128,40 +170,63 @@ function gameLoop() {
 }
 
 function update() {
-    // === [修改處] 1. 玩家移動速度轉換 ===
-    // 650 的數值會對應到 4.5 的實際畫布移動速度
+    // 1. 玩家移動
     const actualMoveSpeed = (player.spd / 650) * 4.5;
     player.x += dx * actualMoveSpeed;
     player.y += dy * actualMoveSpeed;
 
-    // 邊界限制
     player.x = Math.max(player.radiusX, Math.min(cw - player.radiusX, player.x));
     player.y = Math.max(player.radiusY, Math.min(ch - player.radiusY, player.y));
 
-    // 2. 搖桿淡入淡出動畫
-    if (joystick.active) {
-        joystick.opacity = Math.min(1, joystick.opacity + 0.15);
-    } else {
-        joystick.opacity = Math.max(0, joystick.opacity - 0.15);
-    }
+    // 2. 搖桿淡入淡出
+    moveJoy.opacity = moveJoy.active ? Math.min(1, moveJoy.opacity + 0.15) : Math.max(0, moveJoy.opacity - 0.15);
+    atkJoy.opacity = atkJoy.active ? Math.min(1, atkJoy.opacity + 0.15) : Math.max(0, atkJoy.opacity - 0.15);
 
-    // 3. 更新 UI 數值與緩衝動畫
+    // 3. UI 數值
     if (player.displayHp > player.hp) {
-        // 血量變多，緩衝動畫速度稍微放慢一點點會更有感
         player.displayHp -= (player.displayHp - player.hp) * 0.08; 
         if (player.displayHp - player.hp < 0.5) player.displayHp = player.hp; 
     } else {
         player.displayHp = player.hp; 
     }
-
-    // 能量自動回復
     if (player.energy < player.maxEnergy) {
         player.energy = Math.min(player.maxEnergy, player.energy + 0.3);
     }
+
+    // === [重點新增] 4. 處理長按攻擊邏輯 ===
+    if (atkJoy.active) {
+        let now = Date.now();
+        // 檢查是否超過 0.5 秒冷卻
+        if (now - player.lastAtkTime >= player.atkSpeed) {
+            player.lastAtkTime = now;
+            // 發射拳頭 (如果有拖曳就朝拖曳方向，否則朝當前角色面朝方向)
+            let spawnAngle = atkJoy.isDragging ? atkJoy.angle : handAngle;
+            spawnFist(spawnAngle);
+        }
+    }
+
+    // 5. 更新所有正在打出的拳頭動畫進度
+    for (let i = attacks.length - 1; i >= 0; i--) {
+        let atk = attacks[i];
+        atk.progress += 0.08; // 出拳的速度 (約 12 幀打完)
+        if (atk.progress >= 1) {
+            attacks.splice(i, 1); // 打完收拳
+        }
+    }
+}
+
+// 產生拳頭攻擊
+function spawnFist(angle) {
+    attacks.push({
+        x: player.x,
+        y: player.y,
+        angle: angle,
+        progress: 0 // 出拳進度 (0 到 1)
+    });
 }
 
 function draw() {
-    // 1. 清空畫布與繪製網格背景
+    // 清空背景
     ctx.fillStyle = "#263746";
     ctx.fillRect(0, 0, cw, ch);
 
@@ -172,80 +237,43 @@ function draw() {
     for (let y = 0; y < ch; y += 40) { ctx.moveTo(0, y); ctx.lineTo(cw, y); }
     ctx.stroke();
 
-    // 2. 繪製玩家 (史萊姆圖片渲染)
+    // 繪製角色與攻擊特效
     drawPlayer();
 
-    // 3. 繪製玩家頭頂的 UI
+    // 繪製 UI
     drawPlayerUI();
 
-    // 4. 繪製搖桿
-    if (joystick.opacity > 0) {
-        drawJoystick();
-    }
+    // 繪製左右搖桿
+    if (moveJoy.opacity > 0) drawJoystick(moveJoy, "#ffffff"); // 移動搖桿 (白色核心)
+    if (atkJoy.opacity > 0) drawJoystick(atkJoy, "#e74c3c");   // 攻擊搖桿 (紅色核心提示)
 }
 
 /* =========================
    繪製函式細節
 ========================= */
 function drawPlayerUI() {
-    const levelRadius = 11; 
-    const barWidth = 54;    
-    const hpHeight = 7;     
-    const energyHeight = 3; 
-    const barSpacing = 2;   
-    const gap = 5;          
-
+    const levelRadius = 11, barWidth = 54, hpHeight = 7, energyHeight = 3, barSpacing = 2, gap = 5;          
     const totalWidth = (levelRadius * 2) + gap + barWidth;
     const startX = player.x - (totalWidth / 2);
-    
     const cx = startX + levelRadius;
     const cy = player.y - player.radiusY - 32; 
 
-    /* --- 1. 繪製長條圖 --- */
     const barStartX = cx + levelRadius + gap;
     const barStartY = cy - (hpHeight + energyHeight + barSpacing) / 2;
 
-    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-    ctx.fillRect(barStartX, barStartY, barWidth, hpHeight);
-
-    const displayHpRatio = player.displayHp / player.maxHp;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(barStartX, barStartY, barWidth * displayHpRatio, hpHeight);
-
-    const hpRatio = player.hp / player.maxHp;
-    ctx.fillStyle = "#e74c3c";
-    ctx.fillRect(barStartX, barStartY, barWidth * hpRatio, hpHeight);
-
-    ctx.strokeStyle = "rgba(0,0,0,0.8)";
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(barStartX, barStartY, barWidth, hpHeight);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; ctx.fillRect(barStartX, barStartY, barWidth, hpHeight);
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(barStartX, barStartY, barWidth * (player.displayHp / player.maxHp), hpHeight);
+    ctx.fillStyle = "#e74c3c"; ctx.fillRect(barStartX, barStartY, barWidth * (player.hp / player.maxHp), hpHeight);
+    ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 1.5; ctx.strokeRect(barStartX, barStartY, barWidth, hpHeight);
 
     const energyStartY = barStartY + hpHeight + barSpacing;
-    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-    ctx.fillRect(barStartX, energyStartY, barWidth, energyHeight);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; ctx.fillRect(barStartX, energyStartY, barWidth, energyHeight);
+    ctx.fillStyle = "#f39c12"; ctx.fillRect(barStartX, energyStartY, barWidth * (player.energy / player.maxEnergy), energyHeight);
+    ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 1; ctx.strokeRect(barStartX, energyStartY, barWidth, energyHeight);
 
-    const energyRatio = player.energy / player.maxEnergy;
-    ctx.fillStyle = "#f39c12"; 
-    ctx.fillRect(barStartX, energyStartY, barWidth * energyRatio, energyHeight);
-
-    ctx.strokeStyle = "rgba(0,0,0,0.8)";
-    ctx.lineWidth = 1; 
-    ctx.strokeRect(barStartX, energyStartY, barWidth, energyHeight);
-
-    /* --- 2. 繪製等級圓圈 --- */
-    ctx.fillStyle = "#2c3e50"; 
-    ctx.beginPath();
-    ctx.arc(cx, cy, levelRadius, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = "#f1c40f"; 
-    ctx.lineWidth = 2.5; 
-    ctx.stroke();
-
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 13px system-ui, sans-serif"; 
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#2c3e50"; ctx.beginPath(); ctx.arc(cx, cy, levelRadius, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#f1c40f"; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = "#ffffff"; ctx.font = "bold 13px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(player.level, cx, cy + 1); 
 }
 
@@ -253,7 +281,14 @@ function drawPlayer() {
     const px = player.x;
     const py = player.y;
 
-    if (dx !== 0 || dy !== 0) {
+    // === [修改處] 決定面向角度 ===
+    if (atkJoy.isDragging) {
+        // 如果正在拖曳攻擊搖桿，強制看向攻擊方向
+        let angleDiff = atkJoy.angle - handAngle;
+        angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+        handAngle += angleDiff * 0.3; // 轉頭速度較快
+    } else if (dx !== 0 || dy !== 0) {
+        // 否則看向移動方向
         let targetAngle = Math.atan2(dy, dx);
         let angleDiff = targetAngle - handAngle;
         angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
@@ -269,68 +304,65 @@ function drawPlayer() {
     ctx.ellipse(px, py + 12, player.radiusX, player.radiusY - 8, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // B. 史萊姆身體圖片
-    if (sprites.body.complete) {
+    // B. 身體
+    if (sprites.body.complete && sprites.body.naturalWidth !== 0) {
         ctx.drawImage(sprites.body, px - 35, py - 28, 70, 56);
     }
 
-    // C. 史萊姆雙眼圖片
-    if (sprites.eyes.complete) {
+    // C. 眼睛
+    if (sprites.eyes.complete && sprites.eyes.naturalWidth !== 0) {
         ctx.drawImage(sprites.eyes, px - 19 + eyeOffsetX, py - 12 + eyeOffsetY, 38, 12);
     }
 
-    // 手部的橢圓軌道計算
-    const orbitRx = player.radiusX + 16; 
-    const orbitRy = player.radiusY + 16; 
-    const handX = px + Math.cos(handAngle) * orbitRx;
-    const handY = py + Math.sin(handAngle) * orbitRy;
+    // D. 普攻特效 (利用數學 Sin 函數做來回突刺動畫)
+    attacks.forEach(atk => {
+        // progress 從 0 -> 1，Math.sin(0~PI) 會做出平滑的伸出與收回效果
+        const reach = Math.sin(atk.progress * Math.PI) * 55; // 拳頭最遠打到 55px 外
+        const fx = atk.x + Math.cos(atk.angle) * (player.radiusX + reach);
+        const fy = atk.y + Math.sin(atk.angle) * (player.radiusY + reach);
 
-    // D. 史萊姆圓形手圖片
-    if (sprites.hand.complete) {
-        ctx.drawImage(sprites.hand, handX - 10, handY - 10, 20, 20);
+        if (sprites.hand.complete && sprites.hand.naturalWidth !== 0) {
+            // 將 hand 圖片稍微放大(30x30)當作拳頭
+            ctx.drawImage(sprites.hand, fx - 15, fy - 15, 30, 30);
+        }
+    });
+
+    // E. 靜態待機圓形手 (如果有攻擊在打，就把靜態手藏起來)
+    if (attacks.length === 0) {
+        const orbitRx = player.radiusX + 16; 
+        const orbitRy = player.radiusY + 16; 
+        const handX = px + Math.cos(handAngle) * orbitRx;
+        const handY = py + Math.sin(handAngle) * orbitRy;
+        if (sprites.hand.complete && sprites.hand.naturalWidth !== 0) {
+            ctx.drawImage(sprites.hand, handX - 10, handY - 10, 20, 20);
+        }
     }
 }
 
-function drawJoystick() {
-    ctx.globalAlpha = joystick.opacity;
+// 共用的繪製搖桿函式
+function drawJoystick(joy, coreColor) {
+    ctx.globalAlpha = joy.opacity;
 
-    // 大圓
+    // 大圓底座
     ctx.fillStyle = "rgba(0,0,0,0.25)";
     ctx.strokeStyle = "rgba(255,255,255,0.2)";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(joystick.originX, joystick.originY, 75, 0, Math.PI * 2);
+    ctx.arc(joy.originX, joy.originY, 75, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // 小圓
-    ctx.fillStyle = "rgba(255,255,255,0.72)";
+    // 小圓中心點
+    ctx.fillStyle = coreColor === "#ffffff" ? "rgba(255,255,255,0.72)" : "rgba(231, 76, 60, 0.72)";
     ctx.strokeStyle = "rgba(255,255,255,0.9)";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(joystick.stickX, joystick.stickY, 36, 0, Math.PI * 2);
+    ctx.arc(joy.stickX, joy.stickY, 36, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
     ctx.globalAlpha = 1.0;
 }
-
-/* =========================
-   展示用：測試傷害與等級機制
-========================= */
-setInterval(() => {
-    // === [修改處] 放大測試用的傷害值 (配合 1145 的血量) ===
-    const damage = Math.floor(Math.random() * 300 + 150); // 隨機扣 150 ~ 450
-    player.hp -= damage;
-
-    player.energy -= 40;
-    if (player.energy < 0) player.energy = 0;
-    
-    if (player.hp <= 0) {
-        player.hp = player.maxHp;
-        player.level += 1;
-    }
-}, 3000);
 
 // 啟動遊戲
 gameLoop();
