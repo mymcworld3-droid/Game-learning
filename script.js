@@ -26,6 +26,11 @@ const speed = 4.5;
 const maxDistance = 39; // 搖桿最大移動距離
 
 /* =========================
+   眼睛偏移最大像素值 (新增)
+========================= */
+const eyeMaxOffset = 5;
+
+/* =========================
    更新玩家
 ========================= */
 function updatePlayer() {
@@ -44,12 +49,21 @@ function updatePlayer() {
     player.style.left = x + "px";
     player.style.top = y + "px";
 
+    /* === [新增處] === 計算並應用眼睛偏移 */
+    // 根據當前 dx 和 dy 計算眼睛偏移量
+    const eyeOffsetDx = dx * eyeMaxOffset;
+    const eyeOffsetDy = dy * eyeMaxOffset;
+
+    // 更新 CSS 變數，以便 CSS 使用 translate() 偏移眼睛伪元素
+    player.style.setProperty('--eye-offset-x', eyeOffsetDx + 'px');
+    player.style.setProperty('--eye-offset-y', eyeOffsetDy + 'px');
+
     /* 下一幀 */
     requestAnimationFrame(updatePlayer);
 }
 
 /* =========================
-   移動搖桿 (剛剛就是遺失了這段！)
+   移動搖桿 (放回此函式)
 ========================= */
 function moveStick(clientX, clientY) {
     const rect = joystick.getBoundingClientRect();
@@ -97,7 +111,7 @@ function resetStick() {
 }
 
 /* =========================
-   手指按下
+   手指按下 (修改：自由搖桿邏輯)
 ========================= */
 game.addEventListener("pointerdown", e => {
     active = true;
