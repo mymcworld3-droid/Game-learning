@@ -1,169 +1,221 @@
 /* =========================
-   取得遊戲物件
+   畫布與環境設定
 ========================= */
-const game = document.getElementById("game");
-const player = document.getElementById("player");
-const joystick = document.getElementById("joystick");
-const stick = document.getElementById("stick");
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+let cw = canvas.width = window.innerWidth;
+let ch = canvas.height = window.innerHeight;
+
+window.addEventListener("resize", () => {
+    cw = canvas.width = window.innerWidth;
+    ch = canvas.height = window.innerHeight;
+    // 確保改變視窗時角色不會跑出界
+    player.x = Math.max(player.radiusX, Math.min(cw - player.radiusX, player.x));
+    player.y = Math.max(player.radiusY, Math.min(ch - player.radiusY, player.y));
+});
 
 /* =========================
-   玩家位置
+   遊戲物件狀態
 ========================= */
-let x = innerWidth / 2;
-let y = innerHeight / 2;
+// 史萊姆玩家
+const player = {
+    x: cw / 2,
+    y: ch / 2,
+    radiusX: 31, // 寬度 62 的一半
+    radiusY: 24, // 高度 48 的一半
+    speed: 4.5
+};
 
-/* =========================
-   搖桿狀態
-========================= */
-let active = false;
+// 自由搖桿
+const joystick = {
+    active: false,
+    originX: 0,
+    originY: 0,
+    stickX: 0,
+    stickY: 0,
+    maxDistance: 39,
+    opacity: 0 // 用於淡入淡出動畫
+};
+
+// 全域方向向量 (-1 到 1)
 let dx = 0;
 let dy = 0;
 
-/* =========================
-   移動速度與限制
-========================= */
-const speed = 4.5;
-const maxDistance = 39; // 搖桿最大移動距離
-
-/* =========================
-   眼睛偏移最大像素值 (新增)
-========================= */
+// 偏移設定
 const eyeMaxOffset = 5;
+const handMaxOffset = 10;
 
 /* =========================
-   更新玩家
+   輸入監聽 (直接綁定 Canvas)
 ========================= */
-function updatePlayer() {
-    const halfW = player.offsetWidth / 2;
-    const halfH = player.offsetHeight / 2;
+canvas.addEventListener("pointerdown", e => {
+    joystick.active = true;
+    canvas.setPointerCapture(e.pointerId);
 
-    /* 搖桿方向 (dx = 左右, dy = 上下) */
-    x += dx * speed;
-    y += dy * speed;
+    // 設定搖桿中心位置為點擊位置
+    joystick.originX = e.clientX;
+    joystick.originY = e.clientY;
+    joystick.stickX = e.clientX;
+    joystick.stickY = e.clientY;
+    
+    updateJoystick(e.clientX, e.clientY);
+});
 
-    /* 防止角色離開畫面 */
-    x = Math.max(halfW, Math.min(innerWidth - halfW, x));
-    y = Math.max(halfH, Math.min(innerHeight - halfH, y));
-
-    /* 更新角色位置 */
-    player.style.left = x + "px";
-    player.style.top = y + "px";
-
-    /* === [新增處] === 計算並應用眼睛偏移 */
-    // 根據當前 dx 和 dy 計算眼睛偏移量
-    const eyeOffsetDx = dx * eyeMaxOffset;
-    const eyeOffsetDy = dy * eyeMaxOffset;
-
-    // 更新 CSS 變數，以便 CSS 使用 translate() 偏移眼睛伪元素
-    player.style.setProperty('--eye-offset-x', eyeOffsetDx + 'px');
-    player.style.setProperty('--eye-offset-y', eyeOffsetDy + 'px');
-
-    /* 下一幀 */
-    requestAnimationFrame(updatePlayer);
-}
-
-/* =========================
-   移動搖桿 (放回此函式)
-========================= */
-function moveStick(clientX, clientY) {
-    const rect = joystick.getBoundingClientRect();
-
-    /* 搖桿中心 */
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-
-    /* 計算方向 */
-    let vx = clientX - cx;
-    let vy = clientY - cy;
-
-    /* 距離 */
-    const distance = Math.hypot(vx, vy);
-
-    /* 限制最大距離 */
-    if (distance > maxDistance) {
-        vx = vx / distance * maxDistance;
-        vy = vy / distance * maxDistance;
+canvas.addEventListener("pointermove", e => {
+    if (joystick.active) {
+        updateJoystick(e.clientX, e.clientY);
     }
+});
 
-    /* 移動搖桿視覺 */
-    stick.style.left = `calc(50% + ${vx}px)`;
-    stick.style.top = `calc(50% + ${vy}px)`;
-
-    /* 計算移動方向比例給角色使用 */
-    dx = vx / maxDistance;
-    dy = vy / maxDistance;
-}
-
-/* =========================
-   放開搖桿
-========================= */
-function resetStick() {
-    active = false;
+function releaseStick() {
+    joystick.active = false;
     dx = 0;
     dy = 0;
+}
 
-    /* 搖桿回中心 */
-    stick.style.left = "50%";
-    stick.style.top = "50%";
+canvas.addEventListener("pointerup", releaseStick);
+canvas.addEventListener("pointercancel", releaseStick);
 
-    /* 隱藏搖桿 */
-    joystick.style.opacity = "0";
+function updateJoystick(clientX, clientY) {
+    let vx = clientX - joystick.originX;
+    let vy = clientY - joystick.originY;
+    const distance = Math.hypot(vx, vy);
+
+    if (distance > joystick.maxDistance) {
+        vx = (vx / distance) * joystick.maxDistance;
+        vy = (vy / distance) * joystick.maxDistance;
+    }
+
+    joystick.stickX = joystick.originX + vx;
+    joystick.stickY = joystick.originY + vy;
+
+    // 計算移動比例給玩家使用
+    dx = vx / joystick.maxDistance;
+    dy = vy / joystick.maxDistance;
 }
 
 /* =========================
-   手指按下 (修改：自由搖桿邏輯)
+   主迴圈與渲染邏輯
 ========================= */
-game.addEventListener("pointerdown", e => {
-    active = true;
-    game.setPointerCapture(e.pointerId);
+function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
 
-    /* 取得搖桿的一半尺寸，用來校正中心點 */
-    const joyHalfW = joystick.offsetWidth / 2;
-    const joyHalfH = joystick.offsetHeight / 2;
+function update() {
+    // 玩家移動
+    player.x += dx * player.speed;
+    player.y += dy * player.speed;
 
-    /* 清除原本 CSS 的 bottom 限制，並將搖桿移到手指按下的位置 */
-    joystick.style.bottom = "auto";
-    joystick.style.left = (e.clientX - joyHalfW) + "px";
-    joystick.style.top = (e.clientY - joyHalfH) + "px";
+    // 邊界限制
+    player.x = Math.max(player.radiusX, Math.min(cw - player.radiusX, player.x));
+    player.y = Math.max(player.radiusY, Math.min(ch - player.radiusY, player.y));
 
-    /* 顯示搖桿 */
-    joystick.style.opacity = "1";
-
-    moveStick(e.clientX, e.clientY);
-});
-
-/* =========================
-   手指移動
-========================= */
-game.addEventListener("pointermove", e => {
-    if (active) {
-        moveStick(e.clientX, e.clientY);
+    // 搖桿淡入淡出動畫
+    if (joystick.active) {
+        joystick.opacity = Math.min(1, joystick.opacity + 0.15); // 漸顯
+    } else {
+        joystick.opacity = Math.max(0, joystick.opacity - 0.15); // 漸隱
     }
-});
+}
+
+function draw() {
+    // 1. 清空畫布與繪製網格背景
+    ctx.fillStyle = "#263746";
+    ctx.fillRect(0, 0, cw, ch);
+
+    ctx.strokeStyle = "rgba(255,255,255,0.035)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    // 繪製垂直與水平網格線 (40px)
+    for (let x = 0; x < cw; x += 40) { ctx.moveTo(x, 0); ctx.lineTo(x, ch); }
+    for (let y = 0; y < ch; y += 40) { ctx.moveTo(0, y); ctx.lineTo(cw, y); }
+    ctx.stroke();
+
+    // 2. 繪製玩家 (史萊姆)
+    drawPlayer();
+
+    // 3. 繪製搖桿 (當不透明度大於 0 時)
+    if (joystick.opacity > 0) {
+        drawJoystick();
+    }
+}
 
 /* =========================
-   手指放開或取消
+   繪製函式細節
 ========================= */
-game.addEventListener("pointerup", resetStick);
-game.addEventListener("pointercancel", resetStick);
+function drawPlayer() {
+    const px = player.x;
+    const py = player.y;
 
-/* =========================
-   螢幕尺寸改變
-========================= */
-addEventListener("resize", () => {
-    x = Math.max(player.offsetWidth / 2, Math.min(innerWidth - player.offsetWidth / 2, x));
-    y = Math.max(player.offsetHeight / 2, Math.min(innerHeight - player.offsetHeight / 2, y));
-});
+    // 動態偏移量計算
+    const eyeOffsetX = dx * eyeMaxOffset;
+    const eyeOffsetY = dy * eyeMaxOffset;
+    const handOffsetX = dx * handMaxOffset;
+    const handOffsetY = dy * handMaxOffset;
 
-/* =========================
-   初始化
-========================= */
-/* 設定搖桿初始隱藏與漸變動畫 */
-joystick.style.opacity = "0";
-joystick.style.transition = "opacity 0.15s ease-out";
+    // A. 影子
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.beginPath();
+    ctx.ellipse(px, py + 12, player.radiusX, player.radiusY - 8, 0, 0, Math.PI * 2);
+    ctx.fill();
 
-player.style.left = x + "px";
-player.style.top = y + "px";
+    // B. 史萊姆身體 (橢圓)
+    ctx.fillStyle = "#4ade80";
+    ctx.strokeStyle = "#166534";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(px, py, player.radiusX, player.radiusY, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
 
-/* 開始遊戲迴圈 */
-updatePlayer();
+    // C. 眼睛 (左眼與右眼)
+    ctx.fillStyle = "#10251a";
+    // 左眼
+    ctx.beginPath();
+    ctx.arc(px - 13 + eyeOffsetX, py - 6 + eyeOffsetY, 4, 0, Math.PI * 2);
+    ctx.fill();
+    // 右眼
+    ctx.beginPath();
+    ctx.arc(px + 13 + eyeOffsetX, py - 6 + eyeOffsetY, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // D. 圓形手 (右下角)
+    ctx.fillStyle = "#4ade80";
+    ctx.strokeStyle = "#166534";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(px + 18 + handOffsetX, py + 12 + handOffsetY, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+}
+
+function drawJoystick() {
+    ctx.globalAlpha = joystick.opacity;
+
+    // 大圓 (搖桿底座)
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(joystick.originX, joystick.originY, 75, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 小圓 (搖桿中心點)
+    ctx.fillStyle = "rgba(255,255,255,0.72)";
+    ctx.strokeStyle = "rgba(255,255,255,0.9)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(joystick.stickX, joystick.stickY, 36, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 恢復透明度
+    ctx.globalAlpha = 1.0;
+}
+
+// 啟動遊戲
+gameLoop();
