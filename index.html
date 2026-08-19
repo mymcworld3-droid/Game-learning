@@ -285,8 +285,11 @@ function updatePlayer() {
         dy = 上下
     */
 
-    x += dx * speed;
-    y += dy * speed;
+    /* 在 updatePlayer() 函數中修改移動速度 */
+    // X 軸保持原速
+    x += dx * speed; 
+    // Y 軸因為視覺壓縮，速度乘上一個係數 (例如 0.7) 讓移動看起來合理
+    y += dy * speed * 0.7;
 
 
     /* 防止角色離開畫面 */
