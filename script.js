@@ -44,7 +44,9 @@ let dy = 0;
 
 // 偏移設定
 const eyeMaxOffset = 5;
-const handMaxOffset = 10;
+
+// === [新增] 手部環繞角度追蹤 ===
+let handAngle = Math.PI / 4; // 初始角度預設在右下角 (45度)
 
 /* =========================
    輸入監聽 (直接綁定 Canvas)
@@ -150,11 +152,9 @@ function drawPlayer() {
     const px = player.x;
     const py = player.y;
 
-    // 動態偏移量計算
+    // 眼睛動態偏移量計算
     const eyeOffsetX = dx * eyeMaxOffset;
     const eyeOffsetY = dy * eyeMaxOffset;
-    const handOffsetX = dx * handMaxOffset;
-    const handOffsetY = dy * handMaxOffset;
 
     // A. 影子
     ctx.fillStyle = "rgba(0,0,0,0.35)";
@@ -182,12 +182,38 @@ function drawPlayer() {
     ctx.arc(px + 13 + eyeOffsetX, py - 6 + eyeOffsetY, 4, 0, Math.PI * 2);
     ctx.fill();
 
-    // D. 圓形手 (右下角)
+    /* ==============================================
+       === [新增處] 計算手部橢圓環繞軌跡 ===
+       利用 atan2 抓出方向角度，再用 cos/sin 畫出軌跡
+    ============================================== */
+    let targetAngle;
+    if (dx !== 0 || dy !== 0) {
+        // 當搖桿有推動時，目標角度朝向搖桿方向
+        targetAngle = Math.atan2(dy, dx);
+    } else {
+        // 搖桿放開時，手放回右下角的預設位置
+        targetAngle = Math.PI / 4;
+    }
+
+    // 處理角度平滑過渡 (避免從 -180 度直接跳到 180 度造成手部閃爍)
+    let angleDiff = targetAngle - handAngle;
+    angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+    handAngle += angleDiff * 0.15; // 0.15 決定手轉過去的速度
+
+    // 設定手部的橢圓軌道半徑 (比身體稍微大一點點，創造環繞感)
+    const orbitRx = player.radiusX + 16; 
+    const orbitRy = player.radiusY + 16; 
+
+    // 利用三角函數計算出環繞的 X 與 Y 座標
+    const handX = px + Math.cos(handAngle) * orbitRx;
+    const handY = py + Math.sin(handAngle) * orbitRy;
+
+    // D. 繪製圓形手
     ctx.fillStyle = "#4ade80";
     ctx.strokeStyle = "#166534";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(px + 18 + handOffsetX, py + 12 + handOffsetY, 6, 0, Math.PI * 2);
+    ctx.arc(handX, handY, 6, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 }
