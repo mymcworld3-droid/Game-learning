@@ -38,13 +38,14 @@ const player = {
     y: ch / 2,
     radiusX: 31, // 碰撞體寬度的一半 (維持原比例)
     radiusY: 24, // 碰撞體高度的一半 (維持原比例)
-    speed: 4.5,
     
-    // 玩家戰鬥數值
+    // === [修改處] 玩家基礎戰鬥數值 ===
     level: 1,
-    hp: 100,
-    maxHp: 100,
-    displayHp: 100, // 用於製作扣血時的「白色緩衝殘影」效果
+    hp: 1145,         // 基礎血量 1145
+    maxHp: 1145,
+    displayHp: 1145,  // 用於製作扣血時的「白色緩衝殘影」效果
+    atk: 66,          // 基礎攻擊力 66
+    spd: 650,         // 基礎速度 650 (這會轉換為實際畫布移動像素)
     energy: 100,
     maxEnergy: 100
 };
@@ -127,9 +128,11 @@ function gameLoop() {
 }
 
 function update() {
-    // 1. 玩家移動
-    player.x += dx * player.speed;
-    player.y += dy * player.speed;
+    // === [修改處] 1. 玩家移動速度轉換 ===
+    // 650 的數值會對應到 4.5 的實際畫布移動速度
+    const actualMoveSpeed = (player.spd / 650) * 4.5;
+    player.x += dx * actualMoveSpeed;
+    player.y += dy * actualMoveSpeed;
 
     // 邊界限制
     player.x = Math.max(player.radiusX, Math.min(cw - player.radiusX, player.x));
@@ -144,6 +147,7 @@ function update() {
 
     // 3. 更新 UI 數值與緩衝動畫
     if (player.displayHp > player.hp) {
+        // 血量變多，緩衝動畫速度稍微放慢一點點會更有感
         player.displayHp -= (player.displayHp - player.hp) * 0.08; 
         if (player.displayHp - player.hp < 0.5) player.displayHp = player.hp; 
     } else {
@@ -245,7 +249,6 @@ function drawPlayerUI() {
     ctx.fillText(player.level, cx, cy + 1); 
 }
 
-// === [重點修改處] 使用圖片渲染取代原本的繪圖 ===
 function drawPlayer() {
     const px = player.x;
     const py = player.y;
@@ -260,22 +263,19 @@ function drawPlayer() {
     const eyeOffsetX = Math.cos(handAngle) * eyeMaxOffset;
     const eyeOffsetY = Math.sin(handAngle) * eyeMaxOffset;
 
-    // A. 影子 (保留 Canvas 繪製，因為影子很簡單且半透明)
+    // A. 影子
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.beginPath();
     ctx.ellipse(px, py + 12, player.radiusX, player.radiusY - 8, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // B. 史萊姆身體圖片
-    // 繪製大小是 70x56 (將我們先前產生的 8 倍圖縮放回原尺寸)
     if (sprites.body.complete) {
         ctx.drawImage(sprites.body, px - 35, py - 28, 70, 56);
     }
 
     // C. 史萊姆雙眼圖片
-    // 繪製大小是 38x12，並加上隨搖桿改變的眼球偏移 (eyeOffsetX/Y)
     if (sprites.eyes.complete) {
-        // 中心點大約在頭部偏上方 (py - 12)
         ctx.drawImage(sprites.eyes, px - 19 + eyeOffsetX, py - 12 + eyeOffsetY, 38, 12);
     }
 
@@ -286,7 +286,6 @@ function drawPlayer() {
     const handY = py + Math.sin(handAngle) * orbitRy;
 
     // D. 史萊姆圓形手圖片
-    // 繪製大小是 20x20
     if (sprites.hand.complete) {
         ctx.drawImage(sprites.hand, handX - 10, handY - 10, 20, 20);
     }
@@ -320,7 +319,8 @@ function drawJoystick() {
    展示用：測試傷害與等級機制
 ========================= */
 setInterval(() => {
-    const damage = Math.floor(Math.random() * 30 + 15);
+    // === [修改處] 放大測試用的傷害值 (配合 1145 的血量) ===
+    const damage = Math.floor(Math.random() * 300 + 150); // 隨機扣 150 ~ 450
     player.hp -= damage;
 
     player.energy -= 40;
