@@ -37,7 +37,6 @@ const sprites = {
     body: new Image(),
     eyes: new Image(),
     hand: new Image(),
-    // 新增武器與技能圖示
     weaponMoyan: new Image(),
     skillMoyan: new Image()
 };
@@ -51,17 +50,19 @@ sprites.skillMoyan.src = "asset/skills/魔炎熾魂刀.jpeg";
 /* =========================
    武器與遊戲物件狀態
 ========================= */
-// 武器資料庫
 const WEAPON_DB = {
     "moyan": {
         id: "moyan",
         name: "魔炎熾魂刀",
         icon: sprites.weaponMoyan,
         skillIcon: sprites.skillMoyan,
-        desc: "普攻：火屬性傷害 (攻擊力*2)，間隔0.75秒。\n被動：擊中目標獲1層魔炎(+4%攻速, +20攻擊)最疊5層，持續5秒。\n技能：瞬移並釋放火海(攻擊*2傷害，燃燒5秒，沉默1秒)",
+        desc: "普攻：火屬性傷害 (攻擊力*2)，間隔0.75秒。\n被動：擊中目標獲1層魔炎(+4%攻速, +20攻擊)最疊5層，持續5秒。\n技能：拖曳施放，瞬移到指定位置並釋放火海(攻擊*2傷害，燃燒5秒，沉默1秒)",
         baseAtkMult: 2,
         atkInterval: 750, 
-        skillCooldown: 8000 // 技能冷卻 8 秒
+        skillCooldown: 8000,
+        // 新增技能範圍設定
+        skillMaxRange: 250,   // 最遠施法距離
+        skillAoERadius: 120   // 火海範圍半徑
     }
 };
 
@@ -71,19 +72,17 @@ const player = {
     
     level: 1,
     hp: 1145, maxHp: 1145, displayHp: 1145,  
-    baseAtk: 66, atk: 66,       // 分離出基礎與當前攻擊力
+    baseAtk: 66, atk: 66, 
     spd: 650, 
     energy: 100, maxEnergy: 100,
 
     baseAtkSpeed: 500, atkSpeed: 500, 
     lastAtkTime: 0,
     
-    // --- 新增：裝備與狀態系統 ---
-    equippedWeapons: [null, null, null], // 裝配欄位 1, 2, 3
-    activeWeaponSlot: 0,                 // 目前手持的欄位索引 (0~2)
-    lastSkillTimes: [0, 0, 0],           // 各欄位技能上次使用時間
+    equippedWeapons: [null, null, null], 
+    activeWeaponSlot: 0,                 
+    lastSkillTimes: [0, 0, 0],           
     
-    // 被動 Buff 狀態
     buffs: {
         moyanStacks: 0,
         moyanTimer: 0
@@ -93,25 +92,29 @@ const player = {
 const inventory = {
     open: false,             
     currentTab: "weapon",    
-    cols: 4,                 
-    rows: 7, 
-    
+    cols: 4, rows: 7, 
     scrollY: 0, maxScrollY: 0,
     isDragging: false, lastTouchY: 0, dragPointerId: null,
-    
     weaponSlots: new Array(28).fill(null),
     armorSlots: new Array(28).fill(null),
-    
-    // --- 新增：物品詳細資訊介面狀態 ---
-    selectedSlotIndex: null, // 被點選的物品欄位
-    selectedItemType: null   // "weapon" 或 "armor"
+    selectedSlotIndex: null, 
+    selectedItemType: null   
 };
 
-// 遊戲一開始發放武器
 inventory.weaponSlots[0] = WEAPON_DB["moyan"];
 
 const moveJoy = { active: false, originX: 0, originY: 0, stickX: 0, stickY: 0, maxDist: 39, opacity: 0 };
 const atkJoy  = { active: false, originX: 0, originY: 0, opacity: 0.3, angle: 0, isDragging: false };
+
+// --- 新增：技能拖曳狀態管理 ---
+const skillDrag = { 
+    active: false, 
+    slotIndex: -1, 
+    pointerId: null, 
+    targetX: 0, targetY: 0, 
+    dragX: 0, dragY: 0, 
+    startX: 0, startY: 0 
+};
 
 let dx = 0, dy = 0;
 const eyeMaxOffset = 5;
@@ -119,9 +122,8 @@ let handAngle = Math.PI / 4;
 
 let movePointerId = null, atkPointerId = null;
 const attacks = [];
-const effects = []; // 存放技能特效 (如火海)
+const effects = []; 
 
-// 技能按鈕的位置資料
 const skillBtns = [
     { x: 0, y: 0, radius: 25 },
     { x: 0, y: 0, radius: 25 },
@@ -129,7 +131,6 @@ const skillBtns = [
 ];
 
 function updateSkillButtonsPosition() {
-    // 圍繞在攻擊搖桿左上方的弧形排列
     skillBtns[0].x = cw - 210; skillBtns[0].y = ch - 80;
     skillBtns[1].x = cw - 180; skillBtns[1].y = ch - 150;
     skillBtns[2].x = cw - 110; skillBtns[2].y = ch - 200;
@@ -145,54 +146,41 @@ canvas.addEventListener("pointerdown", e => {
     const btnSize = 48;
     const btnX = cw - btnSize - 16, btnY = 16;
 
-    // 1. 右上角背包按鈕
     if (e.clientX >= btnX && e.clientX <= btnX + btnSize && e.clientY >= btnY && e.clientY <= btnY + btnSize) {
         inventory.open = !inventory.open;
-        inventory.selectedSlotIndex = null; // 關閉/開啟時重置詳情
+        inventory.selectedSlotIndex = null; 
         return;
     }
 
     if (inventory.open) {
-        const panelW = Math.min(280, cw - 32); 
-        const panelX = cw - panelW - 16; 
-        const panelY = btnY + btnSize + 16; 
-        const panelH = ch - panelY - 16; 
-
-        // 關閉背包按鈕 (X)
+        const panelW = Math.min(280, cw - 32), panelX = cw - panelW - 16, panelY = btnY + btnSize + 16, panelH = ch - panelY - 16; 
         if (e.clientX >= panelX + panelW - 40 && e.clientX <= panelX + panelW && e.clientY >= panelY && e.clientY <= panelY + 40) {
-            inventory.open = false;
-            return;
+            inventory.open = false; return;
         }
 
-        // 處理詳情介面 (Detail Popup) 的按鈕點擊
         if (inventory.selectedSlotIndex !== null) {
             const detailX = panelX + 16, detailY = panelY + 60, detailW = panelW - 32, detailH = 200;
-            // 點擊返回 (關閉詳情)
             if (e.clientX >= detailX + detailW - 30 && e.clientX <= detailX + detailW && e.clientY >= detailY && e.clientY <= detailY + 30) {
-                inventory.selectedSlotIndex = null;
-                return;
+                inventory.selectedSlotIndex = null; return;
             }
-            // 點擊裝配 1, 2, 3
             if (e.clientY >= detailY + detailH - 45 && e.clientY <= detailY + detailH - 15) {
                 const btnW = (detailW - 32) / 3;
                 for (let i=0; i<3; i++) {
                     let bx = detailX + 10 + i*(btnW + 6);
                     if (e.clientX >= bx && e.clientX <= bx + btnW) {
-                        // 裝備該武器到指定欄位
                         let item = inventory.currentTab === "weapon" ? inventory.weaponSlots[inventory.selectedSlotIndex] : null;
                         if(item && inventory.currentTab === "weapon") {
                             player.equippedWeapons[i] = item;
-                            player.lastSkillTimes[i] = 0; // 重置該槽冷卻
+                            player.lastSkillTimes[i] = 0; 
                         }
-                        inventory.selectedSlotIndex = null; // 裝備後關閉詳情
+                        inventory.selectedSlotIndex = null; 
                         return;
                     }
                 }
             }
-            return; // 若點在詳情內其他地方，阻擋往下觸發
+            return; 
         }
 
-        // 頁籤切換
         const tabW = (panelW - 32 - 8) / 2; 
         if (e.clientY >= panelY + 42 && e.clientY <= panelY + 68) {
             if (e.clientX >= panelX + 16 && e.clientX <= panelX + 16 + tabW) {
@@ -202,17 +190,10 @@ canvas.addEventListener("pointerdown", e => {
             }
         }
 
-        // 點擊網格物品 (開啟詳情)
-        const topOffset = 84;
-        const gridAreaY = panelY + topOffset;
+        const topOffset = 84, gridAreaY = panelY + topOffset;
         if (e.clientX >= panelX && e.clientX <= panelX + panelW && e.clientY >= gridAreaY && e.clientY <= panelY + panelH) {
-            
-            // 計算點中了哪個格子
-            const availableW = panelW - 32;
-            const slotGap = 6;
-            const slotSize = Math.floor((availableW - (inventory.cols - 1) * slotGap) / inventory.cols);
+            const availableW = panelW - 32, slotGap = 6, slotSize = Math.floor((availableW - (inventory.cols - 1) * slotGap) / inventory.cols);
             const gridStartX = panelX + (panelW - (inventory.cols * slotSize + (inventory.cols - 1) * slotGap)) / 2;
-            
             let clickedCol = Math.floor((e.clientX - gridStartX) / (slotSize + slotGap));
             let clickedRow = Math.floor((e.clientY - gridAreaY + inventory.scrollY) / (slotSize + slotGap));
 
@@ -220,45 +201,47 @@ canvas.addEventListener("pointerdown", e => {
                 let index = clickedRow * inventory.cols + clickedCol;
                 let currentSlots = inventory.currentTab === "weapon" ? inventory.weaponSlots : inventory.armorSlots;
                 if (index >= 0 && index < currentSlots.length && currentSlots[index]) {
-                    inventory.selectedSlotIndex = index;
-                    return; // 開啟詳情後跳出
+                    inventory.selectedSlotIndex = index; return; 
                 }
             }
-
-            // 若點到空白處，視為拖曳起始
-            inventory.isDragging = true;
-            inventory.lastTouchY = e.clientY;
-            inventory.dragPointerId = e.pointerId;
+            inventory.isDragging = true; inventory.lastTouchY = e.clientY; inventory.dragPointerId = e.pointerId;
             return;
         }
     }
 
     if (!inventory.open) {
-        // 檢查技能按鈕點擊
+        // --- 修改：技能按鍵按下進入拖曳狀態 ---
         for (let i = 0; i < 3; i++) {
             let btn = skillBtns[i];
             let dist = Math.hypot(e.clientX - btn.x, e.clientY - btn.y);
             if (dist <= btn.radius) {
-                activateSkill(i);
+                let weapon = player.equippedWeapons[i];
+                if (weapon) {
+                    player.activeWeaponSlot = i; // 切換普攻武器
+                    let now = Date.now();
+                    // 檢查冷卻
+                    if (now - player.lastSkillTimes[i] >= weapon.skillCooldown) {
+                        skillDrag.active = true;
+                        skillDrag.slotIndex = i;
+                        skillDrag.pointerId = e.pointerId;
+                        skillDrag.startX = btn.x;
+                        skillDrag.startY = btn.y;
+                        updateSkillTarget(e.clientX, e.clientY);
+                    }
+                }
                 return;
             }
         }
     }
 
-    // 攻擊搖桿控制
     const distToAtkCenter = Math.hypot(e.clientX - atkJoy.originX, e.clientY - atkJoy.originY);
     if (distToAtkCenter <= JOYSTICK_RADIUS) {
         if (atkPointerId === null) {
-            atkPointerId = e.pointerId;
-            atkJoy.active = true;
-            updateAtkAim(e.clientX, e.clientY); 
+            atkPointerId = e.pointerId; atkJoy.active = true; updateAtkAim(e.clientX, e.clientY); 
         }
-    }
-    // 移動搖桿控制
-    else if (e.clientX < cw / 2 && e.clientY > ch / 2) {
+    } else if (e.clientX < cw / 2 && e.clientY > ch / 2) {
         if (movePointerId === null) {
-            movePointerId = e.pointerId;
-            moveJoy.active = true;
+            movePointerId = e.pointerId; moveJoy.active = true;
             moveJoy.originX = e.clientX; moveJoy.originY = e.clientY;
             updateMoveJoy(e.clientX, e.clientY);
         }
@@ -268,11 +251,16 @@ canvas.addEventListener("pointerdown", e => {
 canvas.addEventListener("pointermove", e => {
     if (inventory.open && inventory.isDragging && e.pointerId === inventory.dragPointerId) {
         const deltaY = inventory.lastTouchY - e.clientY;
-        inventory.scrollY += deltaY;
-        inventory.scrollY = Math.max(0, Math.min(inventory.maxScrollY, inventory.scrollY));
-        inventory.lastTouchY = e.clientY;
+        inventory.scrollY += deltaY; inventory.scrollY = Math.max(0, Math.min(inventory.maxScrollY, inventory.scrollY));
+        inventory.lastTouchY = e.clientY; return;
+    }
+    
+    // --- 新增：更新技能拖曳 ---
+    if (skillDrag.active && e.pointerId === skillDrag.pointerId) {
+        updateSkillTarget(e.clientX, e.clientY);
         return;
     }
+
     if (e.pointerId === movePointerId && moveJoy.active) {
         updateMoveJoy(e.clientX, e.clientY);
     } else if (e.pointerId === atkPointerId && atkJoy.active) {
@@ -284,6 +272,14 @@ function handlePointerUp(e) {
     if (inventory.isDragging && e.pointerId === inventory.dragPointerId) {
         inventory.isDragging = false; inventory.dragPointerId = null;
     }
+    
+    // --- 新增：放開時施放技能 ---
+    if (skillDrag.active && e.pointerId === skillDrag.pointerId) {
+        executeSkill(skillDrag.slotIndex, skillDrag.targetX, skillDrag.targetY);
+        skillDrag.active = false;
+        skillDrag.pointerId = null;
+    }
+
     if (e.pointerId === movePointerId) {
         moveJoy.active = false; movePointerId = null; dx = 0; dy = 0;
     } else if (e.pointerId === atkPointerId) {
@@ -308,39 +304,53 @@ function updateAtkAim(cx, cy) {
     else { atkJoy.isDragging = false; }
 }
 
-// --- 技能發動邏輯 ---
-function activateSkill(slotIndex) {
+// --- 新增：計算技能目標位置 ---
+function updateSkillTarget(cx, cy) {
+    skillDrag.dragX = cx;
+    skillDrag.dragY = cy;
+    let vx = cx - skillDrag.startX;
+    let vy = cy - skillDrag.startY;
+    let dragDist = Math.hypot(vx, vy);
+    let dragAngle = Math.atan2(vy, vx);
+
+    let weapon = player.equippedWeapons[skillDrag.slotIndex];
+    let maxUiDrag = 60; // 拖曳 60 像素即達到最遠施法距離
+    let ratio = Math.min(dragDist / maxUiDrag, 1);
+    
+    let maxWorldRange = weapon.skillMaxRange || 200;
+    let targetDist = ratio * maxWorldRange;
+
+    skillDrag.targetX = player.x + Math.cos(dragAngle) * targetDist;
+    skillDrag.targetY = player.y + Math.sin(dragAngle) * targetDist;
+    
+    // 讓玩家轉向施法目標點
+    handAngle = dragAngle;
+}
+
+// --- 修改：技能執行 ---
+function executeSkill(slotIndex, targetX, targetY) {
     let weapon = player.equippedWeapons[slotIndex];
     if (!weapon) return;
     
-    // 切換當前武器普攻型態
     player.activeWeaponSlot = slotIndex;
-    
-    // 檢查技能冷卻
     let now = Date.now();
+    
     if (now - player.lastSkillTimes[slotIndex] >= weapon.skillCooldown) {
-        // 發動技能！
         player.lastSkillTimes[slotIndex] = now;
         
         if (weapon.id === "moyan") {
-            // 魔炎刀技能：瞬移並放火海
-            // 往當前朝向瞬移 150 px
-            player.x += Math.cos(handAngle) * 150;
-            player.y += Math.sin(handAngle) * 150;
-            // 邊界限制
-            player.x = Math.max(player.radiusX, Math.min(cw - player.radiusX, player.x));
-            player.y = Math.max(player.radiusY, Math.min(ch - player.radiusY, player.y));
+            // 瞬移到準心指定位置
+            player.x = Math.max(player.radiusX, Math.min(cw - player.radiusX, targetX));
+            player.y = Math.max(player.radiusY, Math.min(ch - player.radiusY, targetY));
             
-            // 在新地點產生火海 (持續 5 秒)
             effects.push({
                 type: "fireSea",
                 x: player.x,
                 y: player.y,
-                radius: 0, // 會有個擴展動畫
-                maxRadius: 120,
+                radius: 0, 
+                maxRadius: weapon.skillAoERadius || 120,
                 duration: 5000,
                 startTime: now,
-                // 未來可於此記錄傷害倍率與沉默標記給敵人物件讀取
                 damageMult: 2 
             });
         }
@@ -357,37 +367,26 @@ function gameLoop() {
 }
 
 function update() {
-    // --- 狀態更新 (Buffs 與武器屬性) ---
     let currentWeapon = player.equippedWeapons[player.activeWeaponSlot];
     
-    // 處理魔炎 Buff 倒數
     if (player.buffs.moyanStacks > 0) {
-        player.buffs.moyanTimer -= 16.6; // 大約 60fps
+        player.buffs.moyanTimer -= 16.6; 
         if (player.buffs.moyanTimer <= 0) {
-            player.buffs.moyanStacks = 0; // 時間到，層數歸零
+            player.buffs.moyanStacks = 0; 
         }
     }
 
-    // 計算當前面板屬性
     let dynamicAtk = player.baseAtk;
     let dynamicAtkSpeed = player.baseAtkSpeed;
+    if (currentWeapon && currentWeapon.id === "moyan") { dynamicAtkSpeed = currentWeapon.atkInterval; }
     
-    if (currentWeapon && currentWeapon.id === "moyan") {
-        dynamicAtkSpeed = currentWeapon.atkInterval;
-    }
-    
-    // 疊加被動效果 (每層 +20攻, -4% 攻擊間隔(即+攻速))
     dynamicAtk += 20 * player.buffs.moyanStacks;
     dynamicAtkSpeed = dynamicAtkSpeed * (1 - 0.04 * player.buffs.moyanStacks);
     
-    player.atk = dynamicAtk;
-    player.atkSpeed = dynamicAtkSpeed;
+    player.atk = dynamicAtk; player.atkSpeed = dynamicAtkSpeed;
 
-
-    // --- 移動與攻擊判定 ---
     const actualMoveSpeed = (player.spd / 650) * 4.5;
-    player.x += dx * actualMoveSpeed;
-    player.y += dy * actualMoveSpeed;
+    player.x += dx * actualMoveSpeed; player.y += dy * actualMoveSpeed;
     player.x = Math.max(player.radiusX, Math.min(cw - player.radiusX, player.x));
     player.y = Math.max(player.radiusY, Math.min(ch - player.radiusY, player.y));
 
@@ -400,23 +399,20 @@ function update() {
     } else { player.displayHp = player.hp; }
     if (player.energy < player.maxEnergy) { player.energy = Math.min(player.maxEnergy, player.energy + 0.3); }
 
-    // 觸發普攻
-    if (atkJoy.active && !inventory.open) {
+    if (atkJoy.active && !inventory.open && !skillDrag.active) {
         let now = Date.now();
         if (now - player.lastAtkTime >= player.atkSpeed) {
             player.lastAtkTime = now;
             let spawnAngle = atkJoy.isDragging ? atkJoy.angle : handAngle;
             spawnFist(spawnAngle);
             
-            // 如果拿的是魔炎刀，給予魔炎被動疊加 (實戰中應放在拳頭打到敵人時判定，目前雛形先放這裡)
             if (currentWeapon && currentWeapon.id === "moyan") {
                 player.buffs.moyanStacks = Math.min(5, player.buffs.moyanStacks + 1);
-                player.buffs.moyanTimer = 5000; // 刷新持續時間 5 秒
+                player.buffs.moyanTimer = 5000; 
             }
         }
     }
 
-    // 特效/攻擊物件進度更新
     for (let i = attacks.length - 1; i >= 0; i--) {
         let atk = attacks[i];
         atk.progress += 0.08;
@@ -428,10 +424,8 @@ function update() {
         let eff = effects[i];
         if (eff.type === "fireSea") {
             let elapsed = now - eff.startTime;
-            eff.radius = Math.min(eff.maxRadius, eff.radius + 8); // 火海擴散動畫
-            if (elapsed >= eff.duration) {
-                effects.splice(i, 1);
-            }
+            eff.radius = Math.min(eff.maxRadius, eff.radius + 8); 
+            if (elapsed >= eff.duration) { effects.splice(i, 1); }
         }
     }
 }
@@ -451,8 +445,10 @@ function draw() {
     for (let y = 0; y < ch; y += 40) { ctx.moveTo(0, y); ctx.lineTo(cw, y); }
     ctx.stroke();
 
-    // 繪製地上的特效 (火海)
     drawEffects();
+    
+    // --- 新增：繪製施法指示器 (在玩家與特效之下/上皆可，畫在地板上) ---
+    drawSkillIndicators();
 
     drawPlayer();
     drawPlayerUI();
@@ -462,28 +458,55 @@ function draw() {
         if (atkJoy.opacity > 0) drawJoystick(atkJoy, "#e74c3c", false); 
         drawSkillButtons();
     }
-
     drawInventoryUI();
 }
 
 /* =========================
    繪製函式細節
 ========================= */
+function drawSkillIndicators() {
+    if (skillDrag.active) {
+        let weapon = player.equippedWeapons[skillDrag.slotIndex];
+        if (weapon) {
+            let maxRange = weapon.skillMaxRange || 200;
+            let aoeRadius = weapon.skillAoERadius || 120;
+            
+            // 繪製以玩家為中心的最遠施法範圍
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, maxRange, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // 繪製從玩家到目標點的指示線
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+            ctx.setLineDash([5, 5]); // 虛線
+            ctx.beginPath();
+            ctx.moveTo(player.x, player.y);
+            ctx.lineTo(skillDrag.targetX, skillDrag.targetY);
+            ctx.stroke();
+            ctx.setLineDash([]); // 恢復實線
+
+            // 繪製預定施放位置的範圍圈 (白色半透明)
+            ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+            ctx.beginPath();
+            ctx.arc(skillDrag.targetX, skillDrag.targetY, aoeRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        }
+    }
+}
+
 function drawEffects() {
     let now = Date.now();
     effects.forEach(eff => {
         if (eff.type === "fireSea") {
             let timeLeft = (eff.duration - (now - eff.startTime)) / eff.duration;
             ctx.fillStyle = `rgba(231, 76, 60, ${0.4 * timeLeft})`;
-            ctx.beginPath();
-            ctx.arc(eff.x, eff.y, eff.radius, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // 內圈燃燒效果
+            ctx.beginPath(); ctx.arc(eff.x, eff.y, eff.radius, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = `rgba(241, 196, 15, ${0.3 * timeLeft})`;
-            ctx.beginPath();
-            ctx.arc(eff.x, eff.y, eff.radius * 0.7, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.beginPath(); ctx.arc(eff.x, eff.y, eff.radius * 0.7, 0, Math.PI * 2); ctx.fill();
         }
     });
 }
@@ -495,41 +518,43 @@ function drawSkillButtons() {
         let weapon = player.equippedWeapons[i];
         let isActive = (i === player.activeWeaponSlot);
         
-        // 按鈕底座
         ctx.fillStyle = isActive ? "rgba(241, 196, 15, 0.4)" : "rgba(0, 0, 0, 0.4)";
         ctx.strokeStyle = isActive ? "#f1c40f" : "rgba(255, 255, 255, 0.5)";
         ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(btn.x, btn.y, btn.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+        ctx.beginPath(); ctx.arc(btn.x, btn.y, btn.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         
         if (weapon) {
-            // 如果武器圖片讀取完成，畫技能圖
             if (weapon.skillIcon && weapon.skillIcon.complete && weapon.skillIcon.naturalWidth !== 0) {
                 ctx.save();
-                ctx.beginPath();
-                ctx.arc(btn.x, btn.y, btn.radius - 2, 0, Math.PI*2);
-                ctx.clip();
+                ctx.beginPath(); ctx.arc(btn.x, btn.y, btn.radius - 2, 0, Math.PI*2); ctx.clip();
                 ctx.drawImage(weapon.skillIcon, btn.x - btn.radius, btn.y - btn.radius, btn.radius*2, btn.radius*2);
                 ctx.restore();
             } else {
-                ctx.fillStyle = "#fff";
-                ctx.font = "12px system-ui";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
+                ctx.fillStyle = "#fff"; ctx.font = "12px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
                 ctx.fillText("技", btn.x, btn.y);
             }
             
-            // 繪製冷卻遮罩 (CD)
             let elapsed = now - player.lastSkillTimes[i];
             if (elapsed < weapon.skillCooldown) {
                 let ratio = 1 - (elapsed / weapon.skillCooldown);
                 ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-                ctx.beginPath();
-                ctx.moveTo(btn.x, btn.y);
-                ctx.arc(btn.x, btn.y, btn.radius, -Math.PI/2, -Math.PI/2 + Math.PI*2 * ratio, false);
-                ctx.fill();
+                ctx.beginPath(); ctx.moveTo(btn.x, btn.y);
+                ctx.arc(btn.x, btn.y, btn.radius, -Math.PI/2, -Math.PI/2 + Math.PI*2 * ratio, false); ctx.fill();
+            }
+            
+            // 繪製拖曳搖桿點 (視覺回饋)
+            if (skillDrag.active && skillDrag.slotIndex === i) {
+                let vx = skillDrag.dragX - btn.x; let vy = skillDrag.dragY - btn.y;
+                let dragDist = Math.min(Math.hypot(vx, vy), btn.radius);
+                let dragAngle = Math.atan2(vy, vx);
+                let knobX = btn.x + Math.cos(dragAngle) * dragDist;
+                let knobY = btn.y + Math.sin(dragAngle) * dragDist;
+                
+                ctx.beginPath(); ctx.moveTo(btn.x, btn.y); ctx.lineTo(knobX, knobY);
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.8)"; ctx.lineWidth = 3; ctx.stroke();
+                
+                ctx.beginPath(); ctx.arc(knobX, knobY, 12, 0, Math.PI*2);
+                ctx.fillStyle = "rgba(255, 255, 255, 0.9)"; ctx.fill();
             }
         }
     }
@@ -564,25 +589,40 @@ function drawPlayerUI() {
     ctx.fillStyle = "#ffffff"; ctx.font = "bold 13px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(player.level, cx, cy); 
     
-    // 魔炎 Buff 層數文字特效提示 (在血條上方)
     if (player.buffs.moyanStacks > 0) {
-        ctx.fillStyle = "#e74c3c";
-        ctx.font = "bold 12px system-ui";
+        ctx.fillStyle = "#e74c3c"; ctx.font = "bold 12px system-ui";
         ctx.fillText(`🔥 魔炎 x${player.buffs.moyanStacks}`, player.x, cy - 20);
+    }
+}
+
+// --- 輔助函式：畫出目前拿在手上的武器 ---
+function drawEquippedWeapon(worldX, worldY, angle) {
+    let currentWeapon = player.equippedWeapons[player.activeWeaponSlot];
+    if (currentWeapon && currentWeapon.icon && currentWeapon.icon.complete && currentWeapon.icon.naturalWidth !== 0) {
+        ctx.save();
+        ctx.translate(worldX, worldY);
+        // 將圖片旋轉以朝向攻擊角度，並微調角度讓武器刀刃朝外
+        ctx.rotate(angle + Math.PI / 4); 
+        // 由於我們使用的是方形圖標 jpeg，所以這裡將圖形壓扁拉長一點看起來比較像刀劍形狀
+        ctx.drawImage(currentWeapon.icon, -6, -30, 12, 35); 
+        ctx.restore();
     }
 }
 
 function drawPlayer() {
     const px = player.x, py = player.y;
-    if (atkJoy.isDragging) {
-        let angleDiff = atkJoy.angle - handAngle;
-        angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
-        handAngle += angleDiff * 0.3; 
-    } else if (dx !== 0 || dy !== 0) {
-        let targetAngle = Math.atan2(dy, dx);
-        let angleDiff = targetAngle - handAngle;
-        angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
-        handAngle += angleDiff * 0.15; 
+    // 當不拖曳技能時，讓角色朝向移動或攻擊方向
+    if (!skillDrag.active) {
+        if (atkJoy.isDragging) {
+            let angleDiff = atkJoy.angle - handAngle;
+            angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+            handAngle += angleDiff * 0.3; 
+        } else if (dx !== 0 || dy !== 0) {
+            let targetAngle = Math.atan2(dy, dx);
+            let angleDiff = targetAngle - handAngle;
+            angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+            handAngle += angleDiff * 0.15; 
+        }
     }
 
     const eyeOffsetX = Math.cos(handAngle) * eyeMaxOffset;
@@ -600,12 +640,20 @@ function drawPlayer() {
         const reach = Math.sin(atk.progress * Math.PI) * 55; 
         const fx = atk.x + Math.cos(atk.angle) * (player.radiusX + reach);
         const fy = atk.y + Math.sin(atk.angle) * (player.radiusY + reach);
+        
+        // 攻擊時，在拳頭位置繪製武器
+        drawEquippedWeapon(fx, fy, atk.angle);
+        
         if (sprites.hand.complete && sprites.hand.naturalWidth !== 0) { ctx.drawImage(sprites.hand, fx - 15, fy - 15, 30, 30); }
     });
 
     if (attacks.length === 0) {
         const orbitRx = player.radiusX + 16, orbitRy = player.radiusY + 16; 
         const handX = px + Math.cos(handAngle) * orbitRx, handY = py + Math.sin(handAngle) * orbitRy;
+        
+        // 閒置時，在軌道手部繪製武器
+        drawEquippedWeapon(handX, handY, handAngle);
+
         if (sprites.hand.complete && sprites.hand.naturalWidth !== 0) { ctx.drawImage(sprites.hand, handX - 10, handY - 10, 20, 20); }
     }
 }
@@ -625,7 +673,6 @@ function drawInventoryUI() {
 
     const panelW = Math.min(280, cw - 32), panelX = cw - panelW - 16, panelY = btnY + btnSize + 16, panelH = ch - panelY - 16; 
 
-    // 繪製背景面板
     ctx.fillStyle = "rgba(30, 41, 59, 0.95)"; ctx.beginPath(); ctx.roundRect(panelX, panelY, panelW, panelH, 16); ctx.fill();
     ctx.strokeStyle = "#475569"; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(panelX, panelY, panelW, panelH, 16); ctx.stroke();
 
@@ -688,7 +735,6 @@ function drawInventoryUI() {
         ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.beginPath(); ctx.roundRect(sbX, thumbY, sbW, thumbH, 2); ctx.fill();
     }
 
-    // --- 繪製物品詳情疊加介面 (Detail Popup) ---
     if (inventory.selectedSlotIndex !== null) {
         let item = currentSlots[inventory.selectedSlotIndex];
         if (item) {
@@ -697,15 +743,12 @@ function drawInventoryUI() {
             ctx.beginPath(); ctx.roundRect(detailX, detailY, detailW, detailH, 8); ctx.fill();
             ctx.strokeStyle = "#f1c40f"; ctx.lineWidth = 2; ctx.stroke();
             
-            // 關閉按鈕
             ctx.fillStyle = "#e74c3c"; ctx.font = "14px system-ui"; ctx.textAlign="right";
             ctx.fillText("✖", detailX + detailW - 8, detailY + 20);
             
-            // 物品名稱
             ctx.fillStyle = "#f1c40f"; ctx.font = "bold 16px system-ui"; ctx.textAlign="left";
             ctx.fillText(item.name, detailX + 12, detailY + 20);
             
-            // 描述
             ctx.fillStyle = "#cbd5e1"; ctx.font = "12px system-ui"; 
             ctx.textAlign = "left"; ctx.textBaseline = "top";
             let lines = item.desc.split('\n');
@@ -713,7 +756,6 @@ function drawInventoryUI() {
                 ctx.fillText(lines[i], detailX + 12, detailY + 40 + i*18);
             }
             
-            // 裝配按鈕 (1, 2, 3)
             ctx.textBaseline = "middle"; ctx.textAlign="center";
             const btnW = (detailW - 32) / 3;
             for (let i = 0; i < 3; i++) {
