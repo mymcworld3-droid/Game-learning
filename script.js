@@ -1,5 +1,5 @@
 /* =========================
-   畫布與環境設定 (支援高畫質螢幕防模糊)
+   畫布與環境設定
 ========================= */
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -63,6 +63,7 @@ const player = {
 // 初始化畫布尺寸
 resizeCanvas();
 
+// === 背包系統狀態 ===
 const inventory = {
     open: false,             
     currentTab: "weapon",    
@@ -76,7 +77,7 @@ const inventory = {
     lastTouchY: 0,
     dragPointerId: null,
     
-    // 建立空陣列 (完全清空)
+    // 建立 4x7 = 28 格的空陣列 (完全清空)
     weaponSlots: new Array(28).fill(null),
     armorSlots: new Array(28).fill(null)
 };
@@ -141,13 +142,14 @@ canvas.addEventListener("pointerdown", e => {
             return;
         }
 
-        // 分頁切換
-        if (e.clientY >= panelY + 40 && e.clientY <= panelY + 68) {
-            if (e.clientX >= panelX + 16 && e.clientX <= panelX + 96) {
+        // === [修改處] 動態計算分頁按鈕的點擊範圍 ===
+        const tabW = (panelW - 32 - 8) / 2; // 32是左右邊距(16*2)，8是按鈕中間的縫隙
+        if (e.clientY >= panelY + 42 && e.clientY <= panelY + 68) {
+            if (e.clientX >= panelX + 16 && e.clientX <= panelX + 16 + tabW) {
                 inventory.currentTab = "weapon";
                 inventory.scrollY = 0; 
                 return;
-            } else if (e.clientX >= panelX + 104 && e.clientX <= panelX + 184) {
+            } else if (e.clientX >= panelX + 16 + tabW + 8 && e.clientX <= panelX + panelW - 16) {
                 inventory.currentTab = "armor";
                 inventory.scrollY = 0; 
                 return;
@@ -372,7 +374,6 @@ function drawPlayerUI() {
     ctx.fillStyle = "#2c3e50"; ctx.beginPath(); ctx.arc(cx, cy, levelRadius, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = "#f1c40f"; ctx.lineWidth = 2.5; ctx.stroke();
     
-    // === [修正] 等級文字絕對垂直置中，移除所有 offset ===
     ctx.fillStyle = "#ffffff"; 
     ctx.font = "bold 13px system-ui, sans-serif"; 
     ctx.textAlign = "center"; 
@@ -431,7 +432,7 @@ function drawPlayer() {
     }
 }
 
-// === [修正] 全面清理文字對齊方式，不再使用人工微調像素 ===
+// === [重點修改處] 分頁按鈕動態對齊網格寬度 ===
 function drawInventoryUI() {
     const btnSize = 48;
     const btnX = cw - btnSize - 16;
@@ -472,23 +473,28 @@ function drawInventoryUI() {
     ctx.textBaseline = "middle";
     ctx.fillText("✖", panelX + panelW - 22, panelY + 24);
 
+    // === 動態計算 Tabs 的寬度與位置，讓它與下方的左右 padding 切齊 ===
     const isWeapon = inventory.currentTab === "weapon";
+    // 扣除左右邊距(16*2)以及中間的縫隙(8)後除以2
+    const tabW = (panelW - 32 - 8) / 2; 
 
+    // 繪製 "武器" 分頁標籤
     ctx.fillStyle = isWeapon ? "#3b82f6" : "#334155";
-    ctx.beginPath(); ctx.roundRect(panelX + 16, panelY + 42, 80, 26, 6); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(panelX + 16, panelY + 42, tabW, 26, 6); ctx.fill();
     ctx.fillStyle = "#ffffff";
     ctx.font = "13px system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("⚔️ 武器", panelX + 56, panelY + 55);
+    ctx.fillText("⚔️ 武器", panelX + 16 + (tabW / 2), panelY + 55);
 
+    // 繪製 "防具" 分頁標籤
     ctx.fillStyle = !isWeapon ? "#3b82f6" : "#334155";
-    ctx.beginPath(); ctx.roundRect(panelX + 104, panelY + 42, 80, 26, 6); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(panelX + 16 + tabW + 8, panelY + 42, tabW, 26, 6); ctx.fill();
     ctx.fillStyle = "#ffffff";
     ctx.font = "13px system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("🛡️ 防具", panelX + 144, panelY + 55);
+    ctx.fillText("🛡️ 防具", panelX + 16 + tabW + 8 + (tabW / 2), panelY + 55);
 
     const slotGap = 6;
     const gridPaddingX = 16;
