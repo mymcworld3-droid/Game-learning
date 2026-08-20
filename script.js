@@ -50,13 +50,19 @@ sprites.skillMoyan.src = "asset/skills/魔炎熾魂刀技能.jpeg";
 /* =========================
    武器與遊戲物件狀態
 ========================= */
+// === 修改處：細化武器屬性，方便UI排版 ===
 const WEAPON_DB = {
     "moyan": {
         id: "moyan",
         name: "魔炎熾魂刀",
+        rarity: "史詩", // 新增稀有度
         icon: sprites.weaponMoyan,
         skillIcon: sprites.skillMoyan,
-        desc: "普攻：火屬性傷害 (攻擊力*2)，間隔0.75秒。\n被動：擊中目標獲1層魔炎(+4%攻速, +20攻擊)最疊5層，持續5秒。\n技能：拖曳施放，瞬移到指定位置並釋放火海(攻擊*2傷害，燃燒5秒，沉默1秒)",
+        skillName: "魔焰地獄", // 新增技能名稱
+        basicAtkDesc: "火屬性傷害 (攻擊力*2)",
+        atkSpeedDesc: "間隔 0.75 秒",
+        skillDesc: "拖曳施放，瞬移到指定位置並釋放火海(攻擊*2傷害，燃燒5秒，沉默1秒)。",
+        passiveDesc: "擊中目標獲1層魔炎(+4%攻速, +20攻擊)最疊5層，持續5秒。",
         baseAtkMult: 2,
         atkInterval: 750, 
         skillCooldown: 8000,
@@ -100,30 +106,20 @@ const inventory = {
     selectedItemType: null   
 };
 
-// === 新增：武器背包自動排序邏輯 ===
 function sortWeaponInventory() {
     inventory.weaponSlots.sort((a, b) => {
-        // 空欄位往後排
         if (a === null && b === null) return 0;
         if (a === null) return 1;
         if (b === null) return -1;
-        
-        // 檢查是否已裝備，並取得欄位索引 (0, 1, 2)
         let idxA = player.equippedWeapons.indexOf(a);
         let idxB = player.equippedWeapons.indexOf(b);
-        
-        // 已裝備的給予較高優先級 (分數越小越前面)
         let scoreA = idxA !== -1 ? idxA : 999;
         let scoreB = idxB !== -1 ? idxB : 999;
-        
         if (scoreA !== scoreB) return scoreA - scoreB;
-        
-        // 如果都未裝備，按 ID 排序
         return a.id.localeCompare(b.id);
     });
 }
 
-// 遊戲一開始發放武器並排序
 inventory.weaponSlots[0] = WEAPON_DB["moyan"];
 sortWeaponInventory();
 
@@ -169,6 +165,15 @@ function updateSkillButtonsPosition() {
 }
 resizeCanvas();
 
+// === 輔助函式：計算物品詳情彈窗的座標 ===
+function getDetailBounds(panelX, panelY, panelW, panelH) {
+    const detailH = 360; // 加大高度以容納新排版
+    const detailW = panelW - 24;
+    const detailX = panelX + 12;
+    const detailY = Math.max(panelY + 10, panelY + (panelH - detailH) / 2);
+    return { detailX, detailY, detailW, detailH };
+}
+
 /* =========================
    輸入監聽與互動
 ========================= */
@@ -186,15 +191,22 @@ canvas.addEventListener("pointerdown", e => {
 
     if (inventory.open) {
         const panelW = Math.min(280, cw - 32), panelX = cw - panelW - 16, panelY = btnY + btnSize + 16, panelH = ch - panelY - 16; 
+        
+        // 點擊關閉按鈕
         if (e.clientX >= panelX + panelW - 40 && e.clientX <= panelX + panelW && e.clientY >= panelY && e.clientY <= panelY + 40) {
             inventory.open = false; return;
         }
 
+        // 處理物品詳情介面
         if (inventory.selectedSlotIndex !== null) {
-            const detailX = panelX + 16, detailY = panelY + 60, detailW = panelW - 32, detailH = 200;
+            const { detailX, detailY, detailW, detailH } = getDetailBounds(panelX, panelY, panelW, panelH);
+            
+            // 點擊返回(關閉詳情)
             if (e.clientX >= detailX + detailW - 30 && e.clientX <= detailX + detailW && e.clientY >= detailY && e.clientY <= detailY + 30) {
                 inventory.selectedSlotIndex = null; return;
             }
+            
+            // 點擊裝配 1, 2, 3
             if (e.clientY >= detailY + detailH - 45 && e.clientY <= detailY + detailH - 15) {
                 const btnW = (detailW - 32) / 3;
                 for (let i=0; i<3; i++) {
@@ -202,17 +214,11 @@ canvas.addEventListener("pointerdown", e => {
                     if (e.clientX >= bx && e.clientX <= bx + btnW) {
                         let item = inventory.currentTab === "weapon" ? inventory.weaponSlots[inventory.selectedSlotIndex] : null;
                         if(item && inventory.currentTab === "weapon") {
-                            // === 修改處：裝備武器時的保護邏輯與觸發排序 ===
-                            // 檢查這把武器是否已經在其他欄位，若是則先卸下，避免重複裝備
                             for (let j = 0; j < 3; j++) {
-                                if (player.equippedWeapons[j] === item) {
-                                    player.equippedWeapons[j] = null;
-                                }
+                                if (player.equippedWeapons[j] === item) player.equippedWeapons[j] = null;
                             }
                             player.equippedWeapons[i] = item;
                             player.lastSkillTimes[i] = 0; 
-                            
-                            // 重新排序背包，將裝備中的武器置頂
                             sortWeaponInventory();
                         }
                         inventory.selectedSlotIndex = null; 
@@ -220,7 +226,7 @@ canvas.addEventListener("pointerdown", e => {
                     }
                 }
             }
-            return; 
+            return; // 點擊在詳情內其他地方則攔截
         }
 
         const tabW = (panelW - 32 - 8) / 2; 
@@ -706,6 +712,29 @@ function drawPlayer() {
     }
 }
 
+// === 輔助函式：自動換行繪製文字 ===
+function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    if (!text) return y;
+    let words = text.split('');
+    let line = '';
+    let currentY = y;
+    for(let n = 0; n < words.length; n++) {
+        let testLine = line + words[n];
+        let metrics = ctx.measureText(testLine);
+        let testWidth = metrics.width;
+        if (testWidth > maxWidth && n > 0) {
+            ctx.fillText(line, x, currentY);
+            line = words[n];
+            currentY += lineHeight;
+        } else {
+            line = testLine;
+        }
+    }
+    ctx.fillText(line, x, currentY);
+    return currentY + lineHeight;
+}
+
+// === 修改處：物品詳情介面全新排版 ===
 function drawInventoryUI() {
     const btnSize = 48, btnX = cw - btnSize - 16, btnY = 16;
 
@@ -772,7 +801,6 @@ function drawInventoryUI() {
                 ctx.fillStyle = "#ffffff"; ctx.font = "14px system-ui"; ctx.fillText("⚔️", sx + slotSize / 2, sy + slotSize / 2); 
             }
             
-            // === 新增：裝備後的置頂圖示變暗與顯示 E1, E2, E3 ===
             if (isWeapon) {
                 let equipIdx = player.equippedWeapons.indexOf(item);
                 if (equipIdx !== -1) {
@@ -800,27 +828,64 @@ function drawInventoryUI() {
         ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.beginPath(); ctx.roundRect(sbX, thumbY, sbW, thumbH, 2); ctx.fill();
     }
 
+    // 繪製物品詳情介面
     if (inventory.selectedSlotIndex !== null) {
         let item = currentSlots[inventory.selectedSlotIndex];
         if (item) {
-            const detailX = panelX + 16, detailY = panelY + 60, detailW = panelW - 32, detailH = 200;
+            const { detailX, detailY, detailW, detailH } = getDetailBounds(panelX, panelY, panelW, panelH);
+            
             ctx.fillStyle = "rgba(15, 23, 42, 0.98)";
             ctx.beginPath(); ctx.roundRect(detailX, detailY, detailW, detailH, 8); ctx.fill();
             ctx.strokeStyle = "#f1c40f"; ctx.lineWidth = 2; ctx.stroke();
             
-            ctx.fillStyle = "#e74c3c"; ctx.font = "14px system-ui"; ctx.textAlign="right";
-            ctx.fillText("✖", detailX + detailW - 8, detailY + 20);
+            // 關閉按鈕
+            ctx.fillStyle = "#e74c3c"; ctx.font = "16px system-ui"; ctx.textAlign="right"; ctx.textBaseline="top";
+            ctx.fillText("✖", detailX + detailW - 12, detailY + 12);
             
-            ctx.fillStyle = "#f1c40f"; ctx.font = "bold 16px system-ui"; ctx.textAlign="left";
-            ctx.fillText(item.name, detailX + 12, detailY + 20);
+            // 1. 左上武器圖示與名稱
+            const iconSize = 48;
+            ctx.drawImage(item.icon, detailX + 16, detailY + 16, iconSize, iconSize);
             
-            ctx.fillStyle = "#cbd5e1"; ctx.font = "12px system-ui"; 
-            ctx.textAlign = "left"; ctx.textBaseline = "top";
-            let lines = item.desc.split('\n');
-            for(let i=0; i<lines.length; i++) {
-                ctx.fillText(lines[i], detailX + 12, detailY + 40 + i*18);
-            }
+            ctx.fillStyle = "#f1c40f"; ctx.font = "bold 18px system-ui"; ctx.textAlign="left"; ctx.textBaseline="top";
+            ctx.fillText(item.name, detailX + 16 + iconSize + 12, detailY + 18);
             
+            // 2. 右側稀有度
+            ctx.fillStyle = "#c084fc"; // 史詩紫
+            ctx.font = "bold 14px system-ui"; ctx.textAlign="right";
+            ctx.fillText(item.rarity || "史詩", detailX + detailW - 36, detailY + 20);
+            
+            // 3. 普攻與速度
+            let cy = detailY + 16 + iconSize + 20;
+            ctx.fillStyle = "#cbd5e1"; ctx.font = "14px system-ui"; ctx.textAlign="left";
+            ctx.fillText("普攻傷害：" + item.basicAtkDesc, detailX + 16, cy);
+            cy += 22;
+            ctx.fillText("攻擊速度：" + item.atkSpeedDesc, detailX + 16, cy);
+            cy += 30;
+            
+            // 4. 技能區 (名稱、圖片、文字換行說明)
+            ctx.fillStyle = "#38bdf8"; ctx.font = "bold 15px system-ui";
+            ctx.fillText("✦ " + item.skillName, detailX + 16, cy);
+            cy += 24;
+            
+            const skillIconSize = 40;
+            ctx.drawImage(item.skillIcon, detailX + 16, cy, skillIconSize, skillIconSize);
+            
+            ctx.fillStyle = "#94a3b8"; ctx.font = "13px system-ui";
+            // 圖片右側顯示技能文字並自動換行
+            cy = wrapText(ctx, item.skillDesc, detailX + 16 + skillIconSize + 12, cy, detailW - 32 - skillIconSize - 12, 18);
+            
+            // 確保 y 座標至少跳過圖片高度
+            cy = Math.max(cy, detailY + 16 + iconSize + 20 + 22 + 30 + 24 + skillIconSize + 10);
+            
+            // 5. 被動區
+            cy += 10;
+            ctx.fillStyle = "#10b981"; ctx.font = "bold 14px system-ui";
+            ctx.fillText("被動技能", detailX + 16, cy);
+            cy += 20;
+            ctx.fillStyle = "#94a3b8"; ctx.font = "13px system-ui";
+            wrapText(ctx, item.passiveDesc, detailX + 16, cy, detailW - 32, 18);
+            
+            // 6. 裝配按鈕 (1, 2, 3)
             ctx.textBaseline = "middle"; ctx.textAlign="center";
             const btnW = (detailW - 32) / 3;
             for (let i = 0; i < 3; i++) {
@@ -828,7 +893,7 @@ function drawInventoryUI() {
                 let by = detailY + detailH - 45;
                 ctx.fillStyle = "#3b82f6";
                 ctx.beginPath(); ctx.roundRect(bx, by, btnW, 30, 4); ctx.fill();
-                ctx.fillStyle = "#fff";
+                ctx.fillStyle = "#fff"; ctx.font = "14px system-ui";
                 ctx.fillText(`裝配${i+1}`, bx + btnW/2, by + 15);
             }
         }
