@@ -597,7 +597,6 @@ function drawEquippedWeapon(worldX, worldY, angle) {
         ctx.translate(worldX, worldY);
         ctx.rotate(angle + Math.PI / 4); 
         
-        // 稍微調大一點點，讓舉起的氣勢更強，但不影響 1:1 比例
         const size = 40; 
         ctx.drawImage(currentWeapon.icon, 0, -size, size, size); 
         ctx.restore();
@@ -629,13 +628,18 @@ function drawPlayer() {
 
     // --- 攻擊中的狀態 (揮砍) ---
     attacks.forEach(atk => {
-        // reach 控制身體往前延伸的幅度，稍微縮短讓打擊感比較紮實
-        const reach = Math.sin(atk.progress * Math.PI) * 45; 
-        const fx = atk.x + Math.cos(atk.angle) * (player.radiusX + reach);
-        const fy = atk.y + Math.sin(atk.angle) * (player.radiusY + reach);
+        // 【修改】加入二次緩出 (Ease-Out) 讓揮砍有節奏感：起手快、收尾慢
+        let p = atk.progress;
+        let easeP = p * (2 - p); 
         
-        // 【新增】揮砍特效角度：隨著進度，將武器從後方 (-90度) 揮砍到前方 (+90度)
-        let slashAngle = atk.angle - Math.PI / 2 + (atk.progress * Math.PI);
+        // 【修改】武器角度：從後方舉起 (-120 度) 揮到前方壓下 (+60 度)
+        let slashAngle = atk.angle - (Math.PI / 1.5) + (easeP * Math.PI);
+        
+        // 【修改】手不向外伸直！而是固定在身體周圍，跟著武器旋轉的軌跡走
+        const orbitRx = player.radiusX + 6; 
+        const orbitRy = player.radiusY + 6; 
+        const fx = px + Math.cos(slashAngle) * orbitRx;
+        const fy = py + Math.sin(slashAngle) * orbitRy;
         
         drawEquippedWeapon(fx, fy, slashAngle);
         
@@ -644,13 +648,12 @@ function drawPlayer() {
 
     // --- 閒置中的狀態 (舉劍備戰) ---
     if (attacks.length === 0) {
-        // 【修改】將手收近身體一點，表現舉劍的防備姿態
         const orbitRx = player.radiusX + 6; 
         const orbitRy = player.radiusY + 6; 
         const handX = px + Math.cos(handAngle) * orbitRx;
         const handY = py + Math.sin(handAngle) * orbitRy;
         
-        // 【新增】舉劍角度：讓劍刃向後仰起大約 60 度 (形成準備攻擊的姿態)
+        // 舉劍角度：向後方仰起大約 60 度 (形成準備攻擊的姿態)
         let idleWeaponAngle = handAngle - Math.PI / 3;
 
         drawEquippedWeapon(handX, handY, idleWeaponAngle);
