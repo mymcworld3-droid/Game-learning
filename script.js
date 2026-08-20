@@ -45,7 +45,7 @@ sprites.body.src = "asset/body.png";
 sprites.eyes.src = "asset/eyes.png";
 sprites.hand.src = "asset/hand.png";
 sprites.weaponMoyan.src = "asset/weapons/魔炎熾魂刀.jpeg";
-sprites.skillMoyan.src = "asset/skills/魔炎熾魂刀技能.jepg";
+sprites.skillMoyan.src = "asset/skills/魔炎熾魂刀技能.jpeg";
 
 /* =========================
    武器與遊戲物件狀態
