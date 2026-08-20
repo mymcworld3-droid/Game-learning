@@ -47,12 +47,39 @@ const player = {
     energy: 100,
     maxEnergy: 100,
 
-    // === [新增] 攻擊機制屬性 ===
-    atkSpeed: 500,    // 攻速 0.5 秒 (500毫秒)
-    lastAtkTime: 0    // 記錄上次攻擊時間
+    atkSpeed: 500,    // 攻速 0.5 秒
+    lastAtkTime: 0    
 };
 
-// === [修改處] 雙搖桿系統狀態 ===
+// === [新增] 背包系統狀態 ===
+const inventory = {
+    open: false,             // 背包是否開啟
+    currentTab: "weapon",    // 當前分頁: "weapon" (武器) 或 "armor" (防具)
+    cols: 7,                 // 7 欄
+    rows: 4,                 // 4 列 (共 28 格)
+    
+    // 武器分頁物品欄 (28格)
+    weaponSlots: [
+        { name: "新手木劍", icon: "🗡️", atk: 10 },
+        { name: "鐵製長劍", icon: "⚔️", atk: 25 },
+        null, null, null, null, null,
+        null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null
+    ],
+    
+    // 防具分頁物品欄 (28格)
+    armorSlots: [
+        { name: "布製皮甲", icon: "👕", def: 5 },
+        { name: "騎士盾牌", icon: "🛡️", def: 15 },
+        null, null, null, null, null,
+        null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null
+    ]
+};
+
+// 雙搖桿系統狀態
 const moveJoy = { active: false, originX: 0, originY: 0, stickX: 0, stickY: 0, maxDist: 39, opacity: 0 };
 const atkJoy  = { active: false, originX: 0, originY: 0, stickX: 0, stickY: 0, maxDist: 39, opacity: 0, angle: 0, isDragging: false };
 
@@ -61,20 +88,64 @@ let dy = 0;
 const eyeMaxOffset = 5;
 let handAngle = Math.PI / 4; 
 
-// 追蹤多點觸控的 ID
 let movePointerId = null;
 let atkPointerId = null;
 
-// === [新增] 儲存普攻特效的陣列 ===
 const attacks = [];
 
 /* =========================
-   輸入監聽 (支援多點觸控的雙搖桿)
+   輸入監聽 (背包 + 雙搖桿)
 ========================= */
 canvas.addEventListener("pointerdown", e => {
     canvas.setPointerCapture(e.pointerId);
 
-    // 判斷落點是否在「左下四分之一」 (移動)
+    // 1. 檢查是否點擊右上角背包按鈕 (按鈕範圍: 右上角 60x60)
+    const btnSize = 48;
+    const btnX = cw - btnSize - 16;
+    const btnY = 16;
+
+    if (e.clientX >= btnX && e.clientX <= btnX + btnSize &&
+        e.clientY >= btnY && e.clientY <= btnY + btnSize) {
+        inventory.open = !inventory.open; // 開啟 / 關閉背包
+        return;
+    }
+
+    // 2. 如果背包開啟中，處理背包內部的點擊 (切換 Tab 或關閉)
+    if (inventory.open) {
+        const panelW = 340;
+        const panelH = 260;
+        const panelX = (cw - panelW) / 2;
+        const panelY = (ch - panelH) / 2;
+
+        // 點擊關閉按鈕 [X]
+        if (e.clientX >= panelX + panelW - 35 && e.clientX <= panelX + panelW - 10 &&
+            e.clientY >= panelY + 10 && e.clientY <= panelY + 35) {
+            inventory.open = false;
+            return;
+        }
+
+        // 點擊 "武器" 分頁
+        if (e.clientX >= panelX + 16 && e.clientX <= panelX + 96 &&
+            e.clientY >= panelY + 40 && e.clientY <= panelY + 68) {
+            inventory.currentTab = "weapon";
+            return;
+        }
+
+        // 點擊 "防具" 分頁
+        if (e.clientX >= panelX + 104 && e.clientX <= panelX + 184 &&
+            e.clientY >= panelY + 40 && e.clientY <= panelY + 68) {
+            inventory.currentTab = "armor";
+            return;
+        }
+
+        // 如果點擊在背包面板內部，直接消耗點擊事件，不觸發搖桿
+        if (e.clientX >= panelX && e.clientX <= panelX + panelW &&
+            e.clientY >= panelY && e.clientY <= panelY + panelH) {
+            return;
+        }
+    }
+
+    // 3. 搖桿控制 (背包未阻擋時)
     if (e.clientX < cw / 2 && e.clientY > ch / 2) {
         if (movePointerId === null) {
             movePointerId = e.pointerId;
@@ -84,14 +155,13 @@ canvas.addEventListener("pointerdown", e => {
             updateMoveJoy(e.clientX, e.clientY);
         }
     }
-    // 判斷落點是否在「右下四分之一」 (攻擊)
     else if (e.clientX > cw / 2 && e.clientY > ch / 2) {
         if (atkPointerId === null) {
             atkPointerId = e.pointerId;
             atkJoy.active = true;
             atkJoy.originX = e.clientX; atkJoy.originY = e.clientY;
             atkJoy.stickX = e.clientX; atkJoy.stickY = e.clientY;
-            atkJoy.angle = handAngle; // 預設攻擊方向為當前面向方向
+            atkJoy.angle = handAngle; 
             atkJoy.isDragging = false;
             updateAtkJoy(e.clientX, e.clientY);
         }
@@ -120,7 +190,6 @@ function handlePointerUp(e) {
 
 canvas.addEventListener("pointerup", handlePointerUp);
 canvas.addEventListener("pointercancel", handlePointerUp);
-canvas.addEventListener("pointerout", handlePointerUp);
 
 function updateMoveJoy(cx, cy) {
     let vx = cx - moveJoy.originX;
@@ -151,7 +220,6 @@ function updateAtkJoy(cx, cy) {
     atkJoy.stickX = atkJoy.originX + vx;
     atkJoy.stickY = atkJoy.originY + vy;
 
-    // 當攻擊搖桿拖曳超過 5px 時，判定為瞄準模式
     if (dist > 5) {
         atkJoy.isDragging = true;
         atkJoy.angle = Math.atan2(vy, vx);
@@ -193,40 +261,37 @@ function update() {
         player.energy = Math.min(player.maxEnergy, player.energy + 0.3);
     }
 
-    // === [重點新增] 4. 處理長按攻擊邏輯 ===
-    if (atkJoy.active) {
+    // 4. 長按攻擊邏輯 (當背包關閉時才能攻擊)
+    if (atkJoy.active && !inventory.open) {
         let now = Date.now();
-        // 檢查是否超過 0.5 秒冷卻
         if (now - player.lastAtkTime >= player.atkSpeed) {
             player.lastAtkTime = now;
-            // 發射拳頭 (如果有拖曳就朝拖曳方向，否則朝當前角色面朝方向)
             let spawnAngle = atkJoy.isDragging ? atkJoy.angle : handAngle;
             spawnFist(spawnAngle);
         }
     }
 
-    // 5. 更新所有正在打出的拳頭動畫進度
+    // 5. 更新攻擊動畫進度
     for (let i = attacks.length - 1; i >= 0; i--) {
         let atk = attacks[i];
-        atk.progress += 0.08; // 出拳的速度 (約 12 幀打完)
+        atk.progress += 0.08;
         if (atk.progress >= 1) {
-            attacks.splice(i, 1); // 打完收拳
+            attacks.splice(i, 1);
         }
     }
 }
 
-// 產生拳頭攻擊
 function spawnFist(angle) {
     attacks.push({
         x: player.x,
         y: player.y,
         angle: angle,
-        progress: 0 // 出拳進度 (0 到 1)
+        progress: 0 
     });
 }
 
 function draw() {
-    // 清空背景
+    // 1. 背景網格
     ctx.fillStyle = "#263746";
     ctx.fillRect(0, 0, cw, ch);
 
@@ -237,31 +302,34 @@ function draw() {
     for (let y = 0; y < ch; y += 40) { ctx.moveTo(0, y); ctx.lineTo(cw, y); }
     ctx.stroke();
 
-    // 繪製角色與攻擊特效
+    // 2. 玩家與攻擊
     drawPlayer();
 
-    // 繪製 UI
+    // 3. 玩家頭頂 UI
     drawPlayerUI();
 
-    // 繪製左右搖桿
-    if (moveJoy.opacity > 0) drawJoystick(moveJoy, "#ffffff"); // 移動搖桿 (白色核心)
-    if (atkJoy.opacity > 0) drawJoystick(atkJoy, "#e74c3c");   // 攻擊搖桿 (紅色核心提示)
+    // 4. 搖桿 (背包開啟時暫時隱藏)
+    if (!inventory.open) {
+        if (moveJoy.opacity > 0) drawJoystick(moveJoy, "#ffffff");
+        if (atkJoy.opacity > 0) drawJoystick(atkJoy, "#e74c3c");
+    }
+
+    // === [新增] 5. 繪製右上角背包按鈕與背包面板 ===
+    drawInventoryUI();
 }
 
 /* =========================
    繪製函式細節
 ========================= */
 function drawPlayerUI() {
-    // === [修改處] 將血條長度 (hpBarWidth) 與能量條長度 (energyBarWidth) 分開設定 ===
     const levelRadius = 11;
-    const hpBarWidth = 54;     // 血條總長度
-    const energyBarWidth = 38; // 能量條總長度 (比血條短)
+    const hpBarWidth = 54;     
+    const energyBarWidth = 38; 
     const hpHeight = 7;     
     const energyHeight = 3; 
     const barSpacing = 2;   
     const gap = 5;          
 
-    // 整體 UI 水平置中計算以較長的血條為準
     const totalWidth = (levelRadius * 2) + gap + hpBarWidth;
     const startX = player.x - (totalWidth / 2);
     const cx = startX + levelRadius;
@@ -270,71 +338,42 @@ function drawPlayerUI() {
     const barStartX = cx + levelRadius + gap;
     const barStartY = cy - (hpHeight + energyHeight + barSpacing) / 2;
 
-    const hpRadius = 3.5;    // 血條圓角
-    const energyRadius = 1.5; // 能量條圓角
+    const hpRadius = 3.5;    
+    const energyRadius = 1.5; 
 
-    // [HP 背景]
     ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; 
-    ctx.beginPath();
-    ctx.roundRect(barStartX, barStartY, hpBarWidth, hpHeight, hpRadius);
-    ctx.fill();
+    ctx.beginPath(); ctx.roundRect(barStartX, barStartY, hpBarWidth, hpHeight, hpRadius); ctx.fill();
 
-    // [HP 緩衝特效 (白色)]
     let displayHpWidth = Math.max(0, hpBarWidth * (player.displayHp / player.maxHp));
     ctx.fillStyle = "#ffffff"; 
-    ctx.beginPath();
-    ctx.roundRect(barStartX, barStartY, displayHpWidth, hpHeight, hpRadius);
-    ctx.fill();
+    ctx.beginPath(); ctx.roundRect(barStartX, barStartY, displayHpWidth, hpHeight, hpRadius); ctx.fill();
 
-    // [HP 當前血量 (綠色)]
     let hpWidth = Math.max(0, hpBarWidth * (player.hp / player.maxHp));
     ctx.fillStyle = "#2ecc71"; 
-    ctx.beginPath();
-    ctx.roundRect(barStartX, barStartY, hpWidth, hpHeight, hpRadius);
-    ctx.fill();
+    ctx.beginPath(); ctx.roundRect(barStartX, barStartY, hpWidth, hpHeight, hpRadius); ctx.fill();
 
-    // [HP 邊框]
     ctx.strokeStyle = "rgba(0,0,0,0.8)"; 
     ctx.lineWidth = 1.5; 
-    ctx.beginPath();
-    ctx.roundRect(barStartX, barStartY, hpBarWidth, hpHeight, hpRadius);
-    ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(barStartX, barStartY, hpBarWidth, hpHeight, hpRadius); ctx.stroke();
 
-    // [能量 背景] (使用 energyBarWidth 繪製較短的背景)
     const energyStartY = barStartY + hpHeight + barSpacing;
     ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; 
-    ctx.beginPath();
-    ctx.roundRect(barStartX, energyStartY, energyBarWidth, energyHeight, energyRadius);
-    ctx.fill();
+    ctx.beginPath(); ctx.roundRect(barStartX, energyStartY, energyBarWidth, energyHeight, energyRadius); ctx.fill();
 
-    // [能量 當前值 (橘色)]
     let energyWidth = Math.max(0, energyBarWidth * (player.energy / player.maxEnergy));
     ctx.fillStyle = "#f39c12"; 
-    ctx.beginPath();
-    ctx.roundRect(barStartX, energyStartY, energyWidth, energyHeight, energyRadius);
-    ctx.fill();
+    ctx.beginPath(); ctx.roundRect(barStartX, energyStartY, energyWidth, energyHeight, energyRadius); ctx.fill();
 
-    // [能量 邊框]
     ctx.strokeStyle = "rgba(0,0,0,0.8)"; 
     ctx.lineWidth = 1; 
-    ctx.beginPath();
-    ctx.roundRect(barStartX, energyStartY, energyBarWidth, energyHeight, energyRadius);
-    ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(barStartX, energyStartY, energyBarWidth, energyHeight, energyRadius); ctx.stroke();
 
-    // [等級圓圈]
     ctx.fillStyle = "#2c3e50"; 
-    ctx.beginPath(); 
-    ctx.arc(cx, cy, levelRadius, 0, Math.PI * 2); 
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, levelRadius, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#f1c40f"; ctx.lineWidth = 2.5; ctx.stroke();
     
-    ctx.strokeStyle = "#f1c40f"; 
-    ctx.lineWidth = 2.5; 
-    ctx.stroke();
-    
-    ctx.fillStyle = "#ffffff"; 
-    ctx.font = "bold 13px system-ui, sans-serif"; 
-    ctx.textAlign = "center"; 
-    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#ffffff"; ctx.font = "bold 13px system-ui, sans-serif"; 
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(player.level, cx, cy + 1); 
 }
 
@@ -342,14 +381,11 @@ function drawPlayer() {
     const px = player.x;
     const py = player.y;
 
-    // === [修改處] 決定面向角度 ===
     if (atkJoy.isDragging) {
-        // 如果正在拖曳攻擊搖桿，強制看向攻擊方向
         let angleDiff = atkJoy.angle - handAngle;
         angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
-        handAngle += angleDiff * 0.3; // 轉頭速度較快
+        handAngle += angleDiff * 0.3; 
     } else if (dx !== 0 || dy !== 0) {
-        // 否則看向移動方向
         let targetAngle = Math.atan2(dy, dx);
         let angleDiff = targetAngle - handAngle;
         angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
@@ -375,20 +411,18 @@ function drawPlayer() {
         ctx.drawImage(sprites.eyes, px - 19 + eyeOffsetX, py - 12 + eyeOffsetY, 38, 12);
     }
 
-    // D. 普攻特效 (利用數學 Sin 函數做來回突刺動畫)
+    // D. 普攻特效
     attacks.forEach(atk => {
-        // progress 從 0 -> 1，Math.sin(0~PI) 會做出平滑的伸出與收回效果
-        const reach = Math.sin(atk.progress * Math.PI) * 55; // 拳頭最遠打到 55px 外
+        const reach = Math.sin(atk.progress * Math.PI) * 55; 
         const fx = atk.x + Math.cos(atk.angle) * (player.radiusX + reach);
         const fy = atk.y + Math.sin(atk.angle) * (player.radiusY + reach);
 
         if (sprites.hand.complete && sprites.hand.naturalWidth !== 0) {
-            // 將 hand 圖片稍微放大(30x30)當作拳頭
             ctx.drawImage(sprites.hand, fx - 15, fy - 15, 30, 30);
         }
     });
 
-    // E. 靜態待機圓形手 (如果有攻擊在打，就把靜態手藏起來)
+    // E. 靜態待機手
     if (attacks.length === 0) {
         const orbitRx = player.radiusX + 16; 
         const orbitRy = player.radiusY + 16; 
@@ -400,11 +434,126 @@ function drawPlayer() {
     }
 }
 
-// 共用的繪製搖桿函式
+// === [新增] 繪製背包介面 ===
+function drawInventoryUI() {
+    // 1. 繪製右上角背包按鈕
+    const btnSize = 48;
+    const btnX = cw - btnSize - 16;
+    const btnY = 16;
+
+    ctx.fillStyle = inventory.open ? "#e74c3c" : "rgba(30, 41, 59, 0.85)";
+    ctx.beginPath();
+    ctx.roundRect(btnX, btnY, btnSize, btnSize, 12);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(255,255,255,0.3)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(btnX, btnY, btnSize, btnSize, 12);
+    ctx.stroke();
+
+    ctx.font = "24px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("🎒", btnX + btnSize / 2, btnY + btnSize / 2);
+
+    // 2. 如果背包開啟，繪製背包視窗
+    if (!inventory.open) return;
+
+    const panelW = 340;
+    const panelH = 260;
+    const panelX = (cw - panelW) / 2;
+    const panelY = (ch - panelH) / 2;
+
+    // 半透明背景遮罩
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(0, 0, cw, ch);
+
+    // 背包主主體框
+    ctx.fillStyle = "#1e293b";
+    ctx.beginPath();
+    ctx.roundRect(panelX, panelY, panelW, panelH, 16);
+    ctx.fill();
+
+    ctx.strokeStyle = "#334155";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(panelX, panelY, panelW, panelH, 16);
+    ctx.stroke();
+
+    // 標題與關卡按鈕 [X]
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 16px system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("🎒 玩家背包", panelX + 18, panelY + 24);
+
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "bold 16px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("✖", panelX + panelW - 22, panelY + 22);
+
+    // 分頁標籤 (Tabs)
+    const isWeapon = inventory.currentTab === "weapon";
+
+    // "武器" 分頁標籤
+    ctx.fillStyle = isWeapon ? "#3b82f6" : "#334155";
+    ctx.beginPath();
+    ctx.roundRect(panelX + 16, panelY + 42, 80, 26, 6);
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "12px system-ui, sans-serif";
+    ctx.fillText("⚔️ 武器", panelX + 56, panelY + 55);
+
+    // "防具" 分頁標籤
+    ctx.fillStyle = !isWeapon ? "#3b82f6" : "#334155";
+    ctx.beginPath();
+    ctx.roundRect(panelX + 104, panelY + 42, 80, 26, 6);
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText("🛡️ 防具", panelX + 144, panelY + 55);
+
+    // 繪製 4*7 物品欄格 (28格)
+    const slotSize = 36;
+    const slotGap = 6;
+    const gridStartX = panelX + (panelW - (inventory.cols * (slotSize + slotGap) - slotGap)) / 2;
+    const gridStartY = panelY + 80;
+
+    const currentSlots = isWeapon ? inventory.weaponSlots : inventory.armorSlots;
+
+    for (let r = 0; r < inventory.rows; r++) {
+        for (let c = 0; c < inventory.cols; c++) {
+            const index = r * inventory.cols + c;
+            const sx = gridStartX + c * (slotSize + slotGap);
+            const sy = gridStartY + r * (slotSize + slotGap);
+
+            // 格子背景
+            ctx.fillStyle = "#0f172a";
+            ctx.beginPath();
+            ctx.roundRect(sx, sy, slotSize, slotSize, 6);
+            ctx.fill();
+
+            // 格子邊框
+            ctx.strokeStyle = "#334155";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.roundRect(sx, sy, slotSize, slotSize, 6);
+            ctx.stroke();
+
+            // 如果格子內有道具
+            const item = currentSlots[index];
+            if (item) {
+                ctx.font = "20px system-ui, sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(item.icon, sx + slotSize / 2, sy + slotSize / 2);
+            }
+        }
+    }
+}
+
 function drawJoystick(joy, coreColor) {
     ctx.globalAlpha = joy.opacity;
 
-    // 大圓底座
     ctx.fillStyle = "rgba(0,0,0,0.25)";
     ctx.strokeStyle = "rgba(255,255,255,0.2)";
     ctx.lineWidth = 2;
@@ -413,7 +562,6 @@ function drawJoystick(joy, coreColor) {
     ctx.fill();
     ctx.stroke();
 
-    // 小圓中心點
     ctx.fillStyle = coreColor === "#ffffff" ? "rgba(255,255,255,0.72)" : "rgba(231, 76, 60, 0.72)";
     ctx.strokeStyle = "rgba(255,255,255,0.9)";
     ctx.lineWidth = 3;
