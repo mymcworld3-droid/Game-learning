@@ -100,7 +100,32 @@ const inventory = {
     selectedItemType: null   
 };
 
+// === 新增：武器背包自動排序邏輯 ===
+function sortWeaponInventory() {
+    inventory.weaponSlots.sort((a, b) => {
+        // 空欄位往後排
+        if (a === null && b === null) return 0;
+        if (a === null) return 1;
+        if (b === null) return -1;
+        
+        // 檢查是否已裝備，並取得欄位索引 (0, 1, 2)
+        let idxA = player.equippedWeapons.indexOf(a);
+        let idxB = player.equippedWeapons.indexOf(b);
+        
+        // 已裝備的給予較高優先級 (分數越小越前面)
+        let scoreA = idxA !== -1 ? idxA : 999;
+        let scoreB = idxB !== -1 ? idxB : 999;
+        
+        if (scoreA !== scoreB) return scoreA - scoreB;
+        
+        // 如果都未裝備，按 ID 排序
+        return a.id.localeCompare(b.id);
+    });
+}
+
+// 遊戲一開始發放武器並排序
 inventory.weaponSlots[0] = WEAPON_DB["moyan"];
+sortWeaponInventory();
 
 const moveJoy = { active: false, originX: 0, originY: 0, stickX: 0, stickY: 0, maxDist: 39, opacity: 0 };
 const atkJoy  = { active: false, originX: 0, originY: 0, opacity: 0.3, angle: 0, isDragging: false };
@@ -177,8 +202,18 @@ canvas.addEventListener("pointerdown", e => {
                     if (e.clientX >= bx && e.clientX <= bx + btnW) {
                         let item = inventory.currentTab === "weapon" ? inventory.weaponSlots[inventory.selectedSlotIndex] : null;
                         if(item && inventory.currentTab === "weapon") {
+                            // === 修改處：裝備武器時的保護邏輯與觸發排序 ===
+                            // 檢查這把武器是否已經在其他欄位，若是則先卸下，避免重複裝備
+                            for (let j = 0; j < 3; j++) {
+                                if (player.equippedWeapons[j] === item) {
+                                    player.equippedWeapons[j] = null;
+                                }
+                            }
                             player.equippedWeapons[i] = item;
                             player.lastSkillTimes[i] = 0; 
+                            
+                            // 重新排序背包，將裝備中的武器置頂
+                            sortWeaponInventory();
                         }
                         inventory.selectedSlotIndex = null; 
                         return;
@@ -412,7 +447,6 @@ function update() {
         }
     }
 
-    // === 修改處：精準計時 0.2 秒 (200 毫秒) 揮舞時間 ===
     let currentTime = Date.now();
     for (let i = attacks.length - 1; i >= 0; i--) {
         let atk = attacks[i];
@@ -431,7 +465,6 @@ function update() {
     }
 }
 
-// === 修改處：加入 startTime 記錄，保證 0.2 秒精準動畫 ===
 function spawnFist(angle) {
     attacks.push({ x: player.x, y: player.y, angle: angle, progress: 0, startTime: Date.now() });
 }
@@ -593,7 +626,6 @@ function drawPlayerUI() {
     }
 }
 
-// === 修改處：完美處理左右翻轉防「拿反」，確保刀刃邊緣永遠朝向正確的方向 ===
 function drawEquippedWeapon(worldX, worldY, angle, dir) {
     let currentWeapon = player.equippedWeapons[player.activeWeaponSlot];
     if (currentWeapon && currentWeapon.icon && currentWeapon.icon.complete && currentWeapon.icon.naturalWidth !== 0) {
@@ -603,13 +635,10 @@ function drawEquippedWeapon(worldX, worldY, angle, dir) {
         const size = 40; 
         
         if (dir === -1) {
-            // 面向左邊時，進行水平翻轉
             ctx.scale(-1, 1);
-            // 翻轉後需將物理目標角度做鏡像轉換，使其正確指向世界座標的角度
             let mirroredAngle = Math.PI - angle;
             ctx.rotate(mirroredAngle + Math.PI / 4);
         } else {
-            // 面向右邊時，正常旋轉
             ctx.rotate(angle + Math.PI / 4); 
         }
         
@@ -618,7 +647,6 @@ function drawEquippedWeapon(worldX, worldY, angle, dir) {
     }
 }
 
-// === 修改處：手部的動態抓握與揮砍邏輯 ===
 function drawPlayer() {
     const px = player.x, py = player.y;
     
@@ -641,21 +669,15 @@ function drawPlayer() {
     if (sprites.body.complete && sprites.body.naturalWidth !== 0) { ctx.drawImage(sprites.body, px - 35, py - 28, 70, 56); }
     if (sprites.eyes.complete && sprites.eyes.naturalWidth !== 0) { ctx.drawImage(sprites.eyes, px - 19 + eyeOffsetX, py - 12 + eyeOffsetY, 38, 12); }
 
-    // --- 攻擊中的狀態 (揮砍) ---
     attacks.forEach(atk => {
         let p = atk.progress;
-        let easeP = p * (2 - p); // 緩出效果：起手快、收尾慢
+        let easeP = p * (2 - p); 
         
         let atkDir = Math.cos(atk.angle) >= 0 ? 1 : -1;
         
-        // 【修改】縮小了揮砍擺動的幅度，讓打擊看起來更集中、俐落
-        // 【修改】手不外伸 (取消 reach)，單純沿著身體的圓弧軌跡移動
         let armAngle = atk.angle + atkDir * (-Math.PI / 5 + easeP * (Math.PI / 2.5)); 
-        
-        // 【修改】武器與手分離旋轉，形成「翻腕」的向下砍擊感，不再變成「直挺挺的長槍」
         let weaponAngle = atk.angle + atkDir * (-Math.PI / 2 + easeP * (Math.PI / 1.5));
         
-        // 手固定在身體周圍，不往外射出
         const orbitRx = player.radiusX + 6; 
         const orbitRy = player.radiusY + 6; 
         const fx = px + Math.cos(armAngle) * orbitRx;
@@ -668,7 +690,6 @@ function drawPlayer() {
         }
     });
 
-    // --- 閒置中的狀態 (舉劍備戰) ---
     if (attacks.length === 0) {
         let idleDir = Math.cos(handAngle) >= 0 ? 1 : -1;
         
@@ -677,7 +698,6 @@ function drawPlayer() {
         const handX = px + Math.cos(handAngle) * orbitRx;
         const handY = py + Math.sin(handAngle) * orbitRy;
         
-        // 舉劍角度：固定保持向後方仰起，形成帥氣的備戰姿態
         let idleWeaponAngle = handAngle + idleDir * (-Math.PI / 3);
 
         drawEquippedWeapon(handX, handY, idleWeaponAngle, idleDir);
@@ -750,6 +770,23 @@ function drawInventoryUI() {
                 ctx.drawImage(item.icon, sx + 2, sy + 2, slotSize - 4, slotSize - 4);
             } else {
                 ctx.fillStyle = "#ffffff"; ctx.font = "14px system-ui"; ctx.fillText("⚔️", sx + slotSize / 2, sy + slotSize / 2); 
+            }
+            
+            // === 新增：裝備後的置頂圖示變暗與顯示 E1, E2, E3 ===
+            if (isWeapon) {
+                let equipIdx = player.equippedWeapons.indexOf(item);
+                if (equipIdx !== -1) {
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+                    ctx.beginPath(); 
+                    ctx.roundRect(sx + 2, sy + 2, slotSize - 4, slotSize - 4, 4); 
+                    ctx.fill();
+
+                    ctx.fillStyle = "#f1c40f";
+                    ctx.font = "bold 22px system-ui";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(`E${equipIdx + 1}`, sx + slotSize / 2, sy + slotSize / 2);
+                }
             }
         }
     }
