@@ -1,5 +1,5 @@
 /* =========================
-   畫布與環境設定
+   畫布與環境設定 (支援高畫質螢幕防模糊)
 ========================= */
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -7,20 +7,26 @@ const ctx = canvas.getContext("2d");
 let cw = window.innerWidth;
 let ch = window.innerHeight;
 
+// === [新增] 定義固定搖桿的半徑 ===
+const JOYSTICK_RADIUS = 75; 
+
 function resizeCanvas() {
-    const dpr = window.devicePixelRatio || 1; // 獲取設備的像素比例 (如 iPhone 通常是 2 或 3)
+    const dpr = window.devicePixelRatio || 1; 
     cw = window.innerWidth;
     ch = window.innerHeight;
     
-    // 將畫布的實際像素放大，再用 CSS 縮放，達到抗鋸齒與高清晰度
     canvas.width = cw * dpr;
     canvas.height = ch * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // 縮放繪圖上下文
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); 
 
     if (typeof player !== 'undefined') {
         player.x = Math.max(player.radiusX, Math.min(cw - player.radiusX, player.x));
         player.y = Math.max(player.radiusY, Math.min(ch - player.radiusY, player.y));
     }
+
+    // === [新增] 視窗改變時，更新攻擊搖桿的固定位置 (右下角) ===
+    atkJoy.originX = cw - JOYSTICK_RADIUS - 40; 
+    atkJoy.originY = ch - JOYSTICK_RADIUS - 40; 
 }
 
 window.addEventListener("resize", resizeCanvas);
@@ -60,30 +66,25 @@ const player = {
     lastAtkTime: 0    
 };
 
-// 初始化畫布尺寸
-resizeCanvas();
-
-// === 背包系統狀態 ===
 const inventory = {
     open: false,             
     currentTab: "weapon",    
     cols: 4,                 
     rows: 7, 
     
-    // 捲動控制狀態
     scrollY: 0,
     maxScrollY: 0,
     isDragging: false,
     lastTouchY: 0,
     dragPointerId: null,
     
-    // 建立 4x7 = 28 格的空陣列 (完全清空)
     weaponSlots: new Array(28).fill(null),
     armorSlots: new Array(28).fill(null)
 };
 
 const moveJoy = { active: false, originX: 0, originY: 0, stickX: 0, stickY: 0, maxDist: 39, opacity: 0 };
-const atkJoy  = { active: false, originX: 0, originY: 0, stickX: 0, stickY: 0, maxDist: 39, opacity: 0, angle: 0, isDragging: false };
+// === [修改] atkJoy opacity 預設為 0.3 (讓基座常駐微亮)，移除 stickX/Y，加入 angle ===
+const atkJoy  = { active: false, originX: 0, originY: 0, opacity: 0.3, angle: 0, isDragging: false };
 
 let dx = 0;
 let dy = 0;
@@ -95,10 +96,13 @@ let atkPointerId = null;
 
 const attacks = [];
 
+// 初始化畫布尺寸 (同時會設定 atkJoy 的位置)
+resizeCanvas();
+
+
 /* =========================
-   輸入監聽 (支援滑鼠滾輪與觸控拖曳)
+   輸入監聽
 ========================= */
-// 支援電腦滑鼠滾輪捲動背包
 canvas.addEventListener("wheel", e => {
     if (!inventory.open) return;
     const btnSize = 48;
@@ -135,15 +139,13 @@ canvas.addEventListener("pointerdown", e => {
         const panelY = btnY + btnSize + 16; 
         const panelH = ch - panelY - 16; 
 
-        // 關閉按鈕
         if (e.clientX >= panelX + panelW - 40 && e.clientX <= panelX + panelW &&
             e.clientY >= panelY && e.clientY <= panelY + 40) {
             inventory.open = false;
             return;
         }
 
-        // === [修改處] 動態計算分頁按鈕的點擊範圍 ===
-        const tabW = (panelW - 32 - 8) / 2; // 32是左右邊距(16*2)，8是按鈕中間的縫隙
+        const tabW = (panelW - 32 - 8) / 2; 
         if (e.clientY >= panelY + 42 && e.clientY <= panelY + 68) {
             if (e.clientX >= panelX + 16 && e.clientX <= panelX + 16 + tabW) {
                 inventory.currentTab = "weapon";
@@ -156,7 +158,6 @@ canvas.addEventListener("pointerdown", e => {
             }
         }
 
-        // 偵測準備拖曳
         const gridAreaY = panelY + 84;
         if (e.clientX >= panelX && e.clientX <= panelX + panelW &&
             e.clientY >= gridAreaY && e.clientY <= panelY + panelH) {
@@ -166,15 +167,27 @@ canvas.addEventListener("pointerdown", e => {
             return;
         }
 
-        // 點在面板內阻擋搖桿
         if (e.clientX >= panelX && e.clientX <= panelX + panelW &&
             e.clientY >= panelY && e.clientY <= panelY + panelH) {
             return;
         }
     }
 
-    // 3. 搖桿控制
-    if (e.clientX < cw / 2 && e.clientY > ch / 2) {
+    // === [修改處] 3. 攻擊搖桿控制 (固定基座，僅範圍內觸發) ===
+    // 計算點擊位置與攻擊搖桿基座中心的距離
+    const distToAtkCenter = Math.hypot(e.clientX - atkJoy.originX, e.clientY - atkJoy.originY);
+    
+    // 如果點擊落在攻擊搖桿基座範圍內 (JOYSTICK_RADIUS)
+    if (distToAtkCenter <= JOYSTICK_RADIUS) {
+        if (atkPointerId === null) {
+            atkPointerId = e.pointerId;
+            atkJoy.active = true;
+            // 直接根據點擊相對於中心的偏移計算瞄準角度
+            updateAtkAim(e.clientX, e.clientY); 
+        }
+    }
+    // 4. 移動搖桿控制 (如果在左半邊且不是點在攻擊搖桿上)
+    else if (e.clientX < cw / 2 && e.clientY > ch / 2) {
         if (movePointerId === null) {
             movePointerId = e.pointerId;
             moveJoy.active = true;
@@ -183,21 +196,9 @@ canvas.addEventListener("pointerdown", e => {
             updateMoveJoy(e.clientX, e.clientY);
         }
     }
-    else if (e.clientX > cw / 2 && e.clientY > ch / 2) {
-        if (atkPointerId === null) {
-            atkPointerId = e.pointerId;
-            atkJoy.active = true;
-            atkJoy.originX = e.clientX; atkJoy.originY = e.clientY;
-            atkJoy.stickX = e.clientX; atkJoy.stickY = e.clientY;
-            atkJoy.angle = handAngle; 
-            atkJoy.isDragging = false;
-            updateAtkJoy(e.clientX, e.clientY);
-        }
-    }
 });
 
 canvas.addEventListener("pointermove", e => {
-    // 處理背包滑動
     if (inventory.open && inventory.isDragging && e.pointerId === inventory.dragPointerId) {
         const deltaY = inventory.lastTouchY - e.clientY;
         inventory.scrollY += deltaY;
@@ -209,7 +210,8 @@ canvas.addEventListener("pointermove", e => {
     if (e.pointerId === movePointerId && moveJoy.active) {
         updateMoveJoy(e.clientX, e.clientY);
     } else if (e.pointerId === atkPointerId && atkJoy.active) {
-        updateAtkJoy(e.clientX, e.clientY);
+        // === [修改處] 拖曳時更新瞄準角度 ===
+        updateAtkAim(e.clientX, e.clientY);
     }
 });
 
@@ -249,23 +251,17 @@ function updateMoveJoy(cx, cy) {
     dy = vy / moveJoy.maxDist;
 }
 
-function updateAtkJoy(cx, cy) {
+// === [新增] 更新攻擊瞄準角度的函式 ===
+function updateAtkAim(cx, cy) {
     let vx = cx - atkJoy.originX;
     let vy = cy - atkJoy.originY;
     const dist = Math.hypot(vx, vy);
-
-    if (dist > atkJoy.maxDist) {
-        vx = (vx / dist) * atkJoy.maxDist;
-        vy = (vy / dist) * atkJoy.maxDist;
-    }
-
-    atkJoy.stickX = atkJoy.originX + vx;
-    atkJoy.stickY = atkJoy.originY + vy;
 
     if (dist > 5) {
         atkJoy.isDragging = true;
         atkJoy.angle = Math.atan2(vy, vx);
     } else {
+        // 如果按得很靠近中心，就不特別轉頭
         atkJoy.isDragging = false;
     }
 }
@@ -287,8 +283,10 @@ function update() {
     player.x = Math.max(player.radiusX, Math.min(cw - player.radiusX, player.x));
     player.y = Math.max(player.radiusY, Math.min(ch - player.radiusY, player.y));
 
+    // 移動搖桿淡入淡出
     moveJoy.opacity = moveJoy.active ? Math.min(1, moveJoy.opacity + 0.15) : Math.max(0, moveJoy.opacity - 0.15);
-    atkJoy.opacity = atkJoy.active ? Math.min(1, atkJoy.opacity + 0.15) : Math.max(0, atkJoy.opacity - 0.15);
+    // === [修改處] 攻擊搖桿基座常駐微亮 (0.3)，按下時變全亮 (0.8) ===
+    atkJoy.opacity = atkJoy.active ? Math.min(0.8, atkJoy.opacity + 0.15) : Math.max(0.3, atkJoy.opacity - 0.15);
 
     if (player.displayHp > player.hp) {
         player.displayHp -= (player.displayHp - player.hp) * 0.08; 
@@ -337,8 +335,10 @@ function draw() {
     drawPlayerUI();
 
     if (!inventory.open) {
-        if (moveJoy.opacity > 0) drawJoystick(moveJoy, "#ffffff");
-        if (atkJoy.opacity > 0) drawJoystick(atkJoy, "#e74c3c");
+        if (moveJoy.opacity > 0) drawJoystick(moveJoy, "#ffffff", true);
+        
+        // === [修改處] 畫出固定在右下角的攻擊基座 (隱藏中心 Knob) ===
+        if (atkJoy.opacity > 0) drawJoystick(atkJoy, "#e74c3c", false); 
     }
 
     drawInventoryUI();
@@ -432,7 +432,6 @@ function drawPlayer() {
     }
 }
 
-// === [重點修改處] 分頁按鈕動態對齊網格寬度 ===
 function drawInventoryUI() {
     const btnSize = 48;
     const btnX = cw - btnSize - 16;
@@ -473,12 +472,9 @@ function drawInventoryUI() {
     ctx.textBaseline = "middle";
     ctx.fillText("✖", panelX + panelW - 22, panelY + 24);
 
-    // === 動態計算 Tabs 的寬度與位置，讓它與下方的左右 padding 切齊 ===
     const isWeapon = inventory.currentTab === "weapon";
-    // 扣除左右邊距(16*2)以及中間的縫隙(8)後除以2
     const tabW = (panelW - 32 - 8) / 2; 
 
-    // 繪製 "武器" 分頁標籤
     ctx.fillStyle = isWeapon ? "#3b82f6" : "#334155";
     ctx.beginPath(); ctx.roundRect(panelX + 16, panelY + 42, tabW, 26, 6); ctx.fill();
     ctx.fillStyle = "#ffffff";
@@ -487,7 +483,6 @@ function drawInventoryUI() {
     ctx.textBaseline = "middle";
     ctx.fillText("⚔️ 武器", panelX + 16 + (tabW / 2), panelY + 55);
 
-    // 繪製 "防具" 分頁標籤
     ctx.fillStyle = !isWeapon ? "#3b82f6" : "#334155";
     ctx.beginPath(); ctx.roundRect(panelX + 16 + tabW + 8, panelY + 42, tabW, 26, 6); ctx.fill();
     ctx.fillStyle = "#ffffff";
@@ -562,24 +557,44 @@ function drawInventoryUI() {
     }
 }
 
-function drawJoystick(joy, coreColor) {
+// === [修改處] 增加 showKnob 參數，用來決定是否要畫中心的小圓點 ===
+function drawJoystick(joy, coreColor, showKnob) {
     ctx.globalAlpha = joy.opacity;
 
     ctx.fillStyle = "rgba(0,0,0,0.25)";
     ctx.strokeStyle = "rgba(255,255,255,0.2)";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(joy.originX, joy.originY, 75, 0, Math.PI * 2);
+    ctx.arc(joy.originX, joy.originY, JOYSTICK_RADIUS, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = coreColor === "#ffffff" ? "rgba(255,255,255,0.72)" : "rgba(231, 76, 60, 0.72)";
-    ctx.strokeStyle = "rgba(255,255,255,0.9)";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(joy.stickX, joy.stickY, 36, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    // 只有在 showKnob 為 true 時才畫出中心圓 (移動搖桿使用)
+    if (showKnob) {
+        ctx.fillStyle = coreColor === "#ffffff" ? "rgba(255,255,255,0.72)" : "rgba(231, 76, 60, 0.72)";
+        ctx.strokeStyle = "rgba(255,255,255,0.9)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(joy.stickX, joy.stickY, 36, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+    } else {
+        // 攻擊搖桿：在基座中央畫個小小的準心圖案提示玩家這裡是攻擊區
+        ctx.fillStyle = "rgba(231, 76, 60, 0.5)";
+        ctx.beginPath();
+        ctx.arc(joy.originX, joy.originY, 20, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // 畫一個簡單的十字準心
+        ctx.moveTo(joy.originX - 10, joy.originY);
+        ctx.lineTo(joy.originX + 10, joy.originY);
+        ctx.moveTo(joy.originX, joy.originY - 10);
+        ctx.lineTo(joy.originX, joy.originY + 10);
+        ctx.stroke();
+    }
 
     ctx.globalAlpha = 1.0;
 }
