@@ -106,7 +106,7 @@ inventory.weaponSlots[0] = WEAPON_DB["moyan"];
 const moveJoy = { active: false, originX: 0, originY: 0, stickX: 0, stickY: 0, maxDist: 39, opacity: 0 };
 const atkJoy  = { active: false, originX: 0, originY: 0, opacity: 0.3, angle: 0, isDragging: false };
 
-// --- 新增：技能拖曳狀態管理 ---
+// --- 技能拖曳狀態管理 ---
 const skillDrag = { 
     active: false, 
     slotIndex: -1, 
@@ -124,16 +124,30 @@ let movePointerId = null, atkPointerId = null;
 const attacks = [];
 const effects = []; 
 
+// === 修改處：加大技能按鍵半徑到 35 ===
 const skillBtns = [
-    { x: 0, y: 0, radius: 25 },
-    { x: 0, y: 0, radius: 25 },
-    { x: 0, y: 0, radius: 25 }
+    { x: 0, y: 0, radius: 35 },
+    { x: 0, y: 0, radius: 35 },
+    { x: 0, y: 0, radius: 35 }
 ];
 
 function updateSkillButtonsPosition() {
-    skillBtns[0].x = cw - 210; skillBtns[0].y = ch - 80;
-    skillBtns[1].x = cw - 180; skillBtns[1].y = ch - 150;
-    skillBtns[2].x = cw - 110; skillBtns[2].y = ch - 200;
+    // === 修改處：完美環繞普攻按鍵，加寬間距 ===
+    const atkX = cw - JOYSTICK_RADIUS - 40; 
+    const atkY = ch - JOYSTICK_RADIUS - 40; 
+    const arcRadius = 160; // 距離普攻按鍵中心的半徑(距離)
+
+    // 技能 1 (最左側)
+    skillBtns[0].x = atkX - arcRadius; 
+    skillBtns[0].y = atkY;
+
+    // 技能 2 (左上方 45度)
+    skillBtns[1].x = atkX - Math.cos(Math.PI / 4) * arcRadius; 
+    skillBtns[1].y = atkY - Math.sin(Math.PI / 4) * arcRadius;
+
+    // 技能 3 (正上方)
+    skillBtns[2].x = atkX; 
+    skillBtns[2].y = atkY - arcRadius;
 }
 resizeCanvas();
 
@@ -210,16 +224,14 @@ canvas.addEventListener("pointerdown", e => {
     }
 
     if (!inventory.open) {
-        // --- 修改：技能按鍵按下進入拖曳狀態 ---
         for (let i = 0; i < 3; i++) {
             let btn = skillBtns[i];
             let dist = Math.hypot(e.clientX - btn.x, e.clientY - btn.y);
             if (dist <= btn.radius) {
                 let weapon = player.equippedWeapons[i];
                 if (weapon) {
-                    player.activeWeaponSlot = i; // 切換普攻武器
+                    player.activeWeaponSlot = i; 
                     let now = Date.now();
-                    // 檢查冷卻
                     if (now - player.lastSkillTimes[i] >= weapon.skillCooldown) {
                         skillDrag.active = true;
                         skillDrag.slotIndex = i;
@@ -255,7 +267,6 @@ canvas.addEventListener("pointermove", e => {
         inventory.lastTouchY = e.clientY; return;
     }
     
-    // --- 新增：更新技能拖曳 ---
     if (skillDrag.active && e.pointerId === skillDrag.pointerId) {
         updateSkillTarget(e.clientX, e.clientY);
         return;
@@ -273,7 +284,6 @@ function handlePointerUp(e) {
         inventory.isDragging = false; inventory.dragPointerId = null;
     }
     
-    // --- 新增：放開時施放技能 ---
     if (skillDrag.active && e.pointerId === skillDrag.pointerId) {
         executeSkill(skillDrag.slotIndex, skillDrag.targetX, skillDrag.targetY);
         skillDrag.active = false;
@@ -304,7 +314,6 @@ function updateAtkAim(cx, cy) {
     else { atkJoy.isDragging = false; }
 }
 
-// --- 新增：計算技能目標位置 ---
 function updateSkillTarget(cx, cy) {
     skillDrag.dragX = cx;
     skillDrag.dragY = cy;
@@ -314,7 +323,7 @@ function updateSkillTarget(cx, cy) {
     let dragAngle = Math.atan2(vy, vx);
 
     let weapon = player.equippedWeapons[skillDrag.slotIndex];
-    let maxUiDrag = 60; // 拖曳 60 像素即達到最遠施法距離
+    let maxUiDrag = 60; 
     let ratio = Math.min(dragDist / maxUiDrag, 1);
     
     let maxWorldRange = weapon.skillMaxRange || 200;
@@ -323,11 +332,9 @@ function updateSkillTarget(cx, cy) {
     skillDrag.targetX = player.x + Math.cos(dragAngle) * targetDist;
     skillDrag.targetY = player.y + Math.sin(dragAngle) * targetDist;
     
-    // 讓玩家轉向施法目標點
     handAngle = dragAngle;
 }
 
-// --- 修改：技能執行 ---
 function executeSkill(slotIndex, targetX, targetY) {
     let weapon = player.equippedWeapons[slotIndex];
     if (!weapon) return;
@@ -339,7 +346,6 @@ function executeSkill(slotIndex, targetX, targetY) {
         player.lastSkillTimes[slotIndex] = now;
         
         if (weapon.id === "moyan") {
-            // 瞬移到準心指定位置
             player.x = Math.max(player.radiusX, Math.min(cw - player.radiusX, targetX));
             player.y = Math.max(player.radiusY, Math.min(ch - player.radiusY, targetY));
             
@@ -446,8 +452,6 @@ function draw() {
     ctx.stroke();
 
     drawEffects();
-    
-    // --- 新增：繪製施法指示器 (在玩家與特效之下/上皆可，畫在地板上) ---
     drawSkillIndicators();
 
     drawPlayer();
@@ -471,23 +475,20 @@ function drawSkillIndicators() {
             let maxRange = weapon.skillMaxRange || 200;
             let aoeRadius = weapon.skillAoERadius || 120;
             
-            // 繪製以玩家為中心的最遠施法範圍
             ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.arc(player.x, player.y, maxRange, 0, Math.PI * 2);
             ctx.stroke();
             
-            // 繪製從玩家到目標點的指示線
             ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
-            ctx.setLineDash([5, 5]); // 虛線
+            ctx.setLineDash([5, 5]); 
             ctx.beginPath();
             ctx.moveTo(player.x, player.y);
             ctx.lineTo(skillDrag.targetX, skillDrag.targetY);
             ctx.stroke();
-            ctx.setLineDash([]); // 恢復實線
+            ctx.setLineDash([]); 
 
-            // 繪製預定施放位置的範圍圈 (白色半透明)
             ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
             ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
             ctx.beginPath();
@@ -530,7 +531,9 @@ function drawSkillButtons() {
                 ctx.drawImage(weapon.skillIcon, btn.x - btn.radius, btn.y - btn.radius, btn.radius*2, btn.radius*2);
                 ctx.restore();
             } else {
-                ctx.fillStyle = "#fff"; ctx.font = "12px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                ctx.fillStyle = "#fff"; 
+                ctx.font = "bold 16px system-ui"; // === 修改處：加大預設按鈕內的文字 ===
+                ctx.textAlign = "center"; ctx.textBaseline = "middle";
                 ctx.fillText("技", btn.x, btn.y);
             }
             
@@ -542,7 +545,6 @@ function drawSkillButtons() {
                 ctx.arc(btn.x, btn.y, btn.radius, -Math.PI/2, -Math.PI/2 + Math.PI*2 * ratio, false); ctx.fill();
             }
             
-            // 繪製拖曳搖桿點 (視覺回饋)
             if (skillDrag.active && skillDrag.slotIndex === i) {
                 let vx = skillDrag.dragX - btn.x; let vy = skillDrag.dragY - btn.y;
                 let dragDist = Math.min(Math.hypot(vx, vy), btn.radius);
@@ -553,7 +555,7 @@ function drawSkillButtons() {
                 ctx.beginPath(); ctx.moveTo(btn.x, btn.y); ctx.lineTo(knobX, knobY);
                 ctx.strokeStyle = "rgba(255, 255, 255, 0.8)"; ctx.lineWidth = 3; ctx.stroke();
                 
-                ctx.beginPath(); ctx.arc(knobX, knobY, 12, 0, Math.PI*2);
+                ctx.beginPath(); ctx.arc(knobX, knobY, 14, 0, Math.PI*2); // === 修改處：加大拖曳中心點 ===
                 ctx.fillStyle = "rgba(255, 255, 255, 0.9)"; ctx.fill();
             }
         }
@@ -595,15 +597,12 @@ function drawPlayerUI() {
     }
 }
 
-// --- 輔助函式：畫出目前拿在手上的武器 ---
 function drawEquippedWeapon(worldX, worldY, angle) {
     let currentWeapon = player.equippedWeapons[player.activeWeaponSlot];
     if (currentWeapon && currentWeapon.icon && currentWeapon.icon.complete && currentWeapon.icon.naturalWidth !== 0) {
         ctx.save();
         ctx.translate(worldX, worldY);
-        // 將圖片旋轉以朝向攻擊角度，並微調角度讓武器刀刃朝外
         ctx.rotate(angle + Math.PI / 4); 
-        // 由於我們使用的是方形圖標 jpeg，所以這裡將圖形壓扁拉長一點看起來比較像刀劍形狀
         ctx.drawImage(currentWeapon.icon, -6, -30, 12, 35); 
         ctx.restore();
     }
@@ -611,7 +610,6 @@ function drawEquippedWeapon(worldX, worldY, angle) {
 
 function drawPlayer() {
     const px = player.x, py = player.y;
-    // 當不拖曳技能時，讓角色朝向移動或攻擊方向
     if (!skillDrag.active) {
         if (atkJoy.isDragging) {
             let angleDiff = atkJoy.angle - handAngle;
@@ -641,7 +639,6 @@ function drawPlayer() {
         const fx = atk.x + Math.cos(atk.angle) * (player.radiusX + reach);
         const fy = atk.y + Math.sin(atk.angle) * (player.radiusY + reach);
         
-        // 攻擊時，在拳頭位置繪製武器
         drawEquippedWeapon(fx, fy, atk.angle);
         
         if (sprites.hand.complete && sprites.hand.naturalWidth !== 0) { ctx.drawImage(sprites.hand, fx - 15, fy - 15, 30, 30); }
@@ -651,7 +648,6 @@ function drawPlayer() {
         const orbitRx = player.radiusX + 16, orbitRy = player.radiusY + 16; 
         const handX = px + Math.cos(handAngle) * orbitRx, handY = py + Math.sin(handAngle) * orbitRy;
         
-        // 閒置時，在軌道手部繪製武器
         drawEquippedWeapon(handX, handY, handAngle);
 
         if (sprites.hand.complete && sprites.hand.naturalWidth !== 0) { ctx.drawImage(sprites.hand, handX - 10, handY - 10, 20, 20); }
