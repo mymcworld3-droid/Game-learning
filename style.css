@@ -1,5 +1,12 @@
 * {
     box-sizing: border-box;
+    
+    /* === [新增] 防止文字與元件被反白選取 === */
+    -webkit-user-select: none;
+    user-select: none;
+    
+    /* === [新增] 防止手機端點擊時出現藍色高光閃爍 === */
+    -webkit-touch-callout: none;
 }
 
 html, body {
