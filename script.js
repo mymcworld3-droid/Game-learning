@@ -252,8 +252,17 @@ function draw() {
    繪製函式細節
 ========================= */
 function drawPlayerUI() {
-    const levelRadius = 11, barWidth = 54, hpHeight = 7, energyHeight = 3, barSpacing = 2, gap = 5;          
-    const totalWidth = (levelRadius * 2) + gap + barWidth;
+    // === [修改處] 將血條長度 (hpBarWidth) 與能量條長度 (energyBarWidth) 分開設定 ===
+    const levelRadius = 11;
+    const hpBarWidth = 54;     // 血條總長度
+    const energyBarWidth = 38; // 能量條總長度 (比血條短)
+    const hpHeight = 7;     
+    const energyHeight = 3; 
+    const barSpacing = 2;   
+    const gap = 5;          
+
+    // 整體 UI 水平置中計算以較長的血條為準
+    const totalWidth = (levelRadius * 2) + gap + hpBarWidth;
     const startX = player.x - (totalWidth / 2);
     const cx = startX + levelRadius;
     const cy = player.y - player.radiusY - 32; 
@@ -261,26 +270,24 @@ function drawPlayerUI() {
     const barStartX = cx + levelRadius + gap;
     const barStartY = cy - (hpHeight + energyHeight + barSpacing) / 2;
 
-    // === [新增] 定義圓角半徑 ===
-    const hpRadius = 3.5; // 血條圓角 (高度7的一半，呈現膠囊狀)
+    const hpRadius = 3.5;    // 血條圓角
     const energyRadius = 1.5; // 能量條圓角
 
     // [HP 背景]
     ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; 
     ctx.beginPath();
-    ctx.roundRect(barStartX, barStartY, barWidth, hpHeight, hpRadius);
+    ctx.roundRect(barStartX, barStartY, hpBarWidth, hpHeight, hpRadius);
     ctx.fill();
 
     // [HP 緩衝特效 (白色)]
-    // 確保寬度大於0，避免數值異常
-    let displayHpWidth = Math.max(0, barWidth * (player.displayHp / player.maxHp));
+    let displayHpWidth = Math.max(0, hpBarWidth * (player.displayHp / player.maxHp));
     ctx.fillStyle = "#ffffff"; 
     ctx.beginPath();
     ctx.roundRect(barStartX, barStartY, displayHpWidth, hpHeight, hpRadius);
     ctx.fill();
 
     // [HP 當前血量 (綠色)]
-    let hpWidth = Math.max(0, barWidth * (player.hp / player.maxHp));
+    let hpWidth = Math.max(0, hpBarWidth * (player.hp / player.maxHp));
     ctx.fillStyle = "#2ecc71"; 
     ctx.beginPath();
     ctx.roundRect(barStartX, barStartY, hpWidth, hpHeight, hpRadius);
@@ -290,18 +297,18 @@ function drawPlayerUI() {
     ctx.strokeStyle = "rgba(0,0,0,0.8)"; 
     ctx.lineWidth = 1.5; 
     ctx.beginPath();
-    ctx.roundRect(barStartX, barStartY, barWidth, hpHeight, hpRadius);
+    ctx.roundRect(barStartX, barStartY, hpBarWidth, hpHeight, hpRadius);
     ctx.stroke();
 
-    // [能量 背景]
+    // [能量 背景] (使用 energyBarWidth 繪製較短的背景)
     const energyStartY = barStartY + hpHeight + barSpacing;
     ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; 
     ctx.beginPath();
-    ctx.roundRect(barStartX, energyStartY, barWidth, energyHeight, energyRadius);
+    ctx.roundRect(barStartX, energyStartY, energyBarWidth, energyHeight, energyRadius);
     ctx.fill();
 
     // [能量 當前值 (橘色)]
-    let energyWidth = Math.max(0, barWidth * (player.energy / player.maxEnergy));
+    let energyWidth = Math.max(0, energyBarWidth * (player.energy / player.maxEnergy));
     ctx.fillStyle = "#f39c12"; 
     ctx.beginPath();
     ctx.roundRect(barStartX, energyStartY, energyWidth, energyHeight, energyRadius);
@@ -311,10 +318,10 @@ function drawPlayerUI() {
     ctx.strokeStyle = "rgba(0,0,0,0.8)"; 
     ctx.lineWidth = 1; 
     ctx.beginPath();
-    ctx.roundRect(barStartX, energyStartY, barWidth, energyHeight, energyRadius);
+    ctx.roundRect(barStartX, energyStartY, energyBarWidth, energyHeight, energyRadius);
     ctx.stroke();
 
-    // [等級圓圈] (後畫圓圈，讓它可以稍微蓋在血條邊緣上，增加立體感)
+    // [等級圓圈]
     ctx.fillStyle = "#2c3e50"; 
     ctx.beginPath(); 
     ctx.arc(cx, cy, levelRadius, 0, Math.PI * 2); 
