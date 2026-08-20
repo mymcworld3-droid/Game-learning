@@ -416,7 +416,7 @@ function update() {
     let currentTime = Date.now();
     for (let i = attacks.length - 1; i >= 0; i--) {
         let atk = attacks[i];
-        atk.progress = (currentTime - atk.startTime) / 200; // 直接基於時間計算進度
+        atk.progress = (currentTime - atk.startTime) / 200; 
         if (atk.progress >= 1) attacks.splice(i, 1);
     }
     
@@ -431,7 +431,7 @@ function update() {
     }
 }
 
-// === 修改處：加入 startTime 記錄 ===
+// === 修改處：加入 startTime 記錄，保證 0.2 秒精準動畫 ===
 function spawnFist(angle) {
     attacks.push({ x: player.x, y: player.y, angle: angle, progress: 0, startTime: Date.now() });
 }
@@ -593,14 +593,26 @@ function drawPlayerUI() {
     }
 }
 
-function drawEquippedWeapon(worldX, worldY, angle) {
+// === 修改處：完美處理左右翻轉防「拿反」，確保刀刃邊緣永遠朝向正確的方向 ===
+function drawEquippedWeapon(worldX, worldY, angle, dir) {
     let currentWeapon = player.equippedWeapons[player.activeWeaponSlot];
     if (currentWeapon && currentWeapon.icon && currentWeapon.icon.complete && currentWeapon.icon.naturalWidth !== 0) {
         ctx.save();
         ctx.translate(worldX, worldY);
-        ctx.rotate(angle + Math.PI / 4); 
         
         const size = 40; 
+        
+        if (dir === -1) {
+            // 面向左邊時，進行水平翻轉
+            ctx.scale(-1, 1);
+            // 翻轉後需將物理目標角度做鏡像轉換，使其正確指向世界座標的角度
+            let mirroredAngle = Math.PI - angle;
+            ctx.rotate(mirroredAngle + Math.PI / 4);
+        } else {
+            // 面向右邊時，正常旋轉
+            ctx.rotate(angle + Math.PI / 4); 
+        }
+        
         ctx.drawImage(currentWeapon.icon, 0, -size, size, size); 
         ctx.restore();
     }
@@ -634,38 +646,41 @@ function drawPlayer() {
         let p = atk.progress;
         let easeP = p * (2 - p); // 緩出效果：起手快、收尾慢
         
-        // 【修改】減少擺動幅度，手部不向外伸直，而是沿著身體周圍畫弧線
-        // 從攻擊方向的上方稍微後仰揮到下方，模擬向下揮劍的短促力道
-        let armAngle = atk.angle - (Math.PI / 4) + (easeP * (Math.PI / 1.8)); 
+        let atkDir = Math.cos(atk.angle) >= 0 ? 1 : -1;
         
-        // 【修改】武器角度與手分離，加入手腕翻轉的感覺，避免「拿直的」
-        // 武器本身也有獨自的旋轉幅度，從後上方劈砍到前下方
-        let weaponAngle = atk.angle - (Math.PI / 1.8) + (easeP * (Math.PI / 1.2));
+        // 【修改】縮小了揮砍擺動的幅度，讓打擊看起來更集中、俐落
+        // 【修改】手不外伸 (取消 reach)，單純沿著身體的圓弧軌跡移動
+        let armAngle = atk.angle + atkDir * (-Math.PI / 5 + easeP * (Math.PI / 2.5)); 
         
-        // 手固定在身體周圍軌道
+        // 【修改】武器與手分離旋轉，形成「翻腕」的向下砍擊感，不再變成「直挺挺的長槍」
+        let weaponAngle = atk.angle + atkDir * (-Math.PI / 2 + easeP * (Math.PI / 1.5));
+        
+        // 手固定在身體周圍，不往外射出
         const orbitRx = player.radiusX + 6; 
         const orbitRy = player.radiusY + 6; 
         const fx = px + Math.cos(armAngle) * orbitRx;
         const fy = py + Math.sin(armAngle) * orbitRy;
         
-        drawEquippedWeapon(fx, fy, weaponAngle);
+        drawEquippedWeapon(fx, fy, weaponAngle, atkDir);
         
         if (sprites.hand.complete && sprites.hand.naturalWidth !== 0) { 
-            // 統一攻擊與閒置時的手部大小為 20x20，避免突然變大
             ctx.drawImage(sprites.hand, fx - 10, fy - 10, 20, 20); 
         }
     });
 
     // --- 閒置中的狀態 (舉劍備戰) ---
     if (attacks.length === 0) {
+        let idleDir = Math.cos(handAngle) >= 0 ? 1 : -1;
+        
         const orbitRx = player.radiusX + 6; 
         const orbitRy = player.radiusY + 6; 
         const handX = px + Math.cos(handAngle) * orbitRx;
         const handY = py + Math.sin(handAngle) * orbitRy;
         
-        let idleWeaponAngle = handAngle - Math.PI / 3;
+        // 舉劍角度：固定保持向後方仰起，形成帥氣的備戰姿態
+        let idleWeaponAngle = handAngle + idleDir * (-Math.PI / 3);
 
-        drawEquippedWeapon(handX, handY, idleWeaponAngle);
+        drawEquippedWeapon(handX, handY, idleWeaponAngle, idleDir);
 
         if (sprites.hand.complete && sprites.hand.naturalWidth !== 0) { ctx.drawImage(sprites.hand, handX - 10, handY - 10, 20, 20); }
     }
