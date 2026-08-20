@@ -49,32 +49,23 @@ const player = {
     lastAtkTime: 0    
 };
 
+// === [修改處] 背包系統狀態 (加入捲動數值與清空物品) ===
 const inventory = {
     open: false,             
     currentTab: "weapon",    
-    // === [修改處] 改為 4 寬 × 7 高 ===
     cols: 4,                 
-    rows: 7,                 
+    rows: 7, 
     
-    weaponSlots: [
-        { name: "新手木劍", icon: "🗡️", atk: 10 },
-        { name: "鐵製長劍", icon: "⚔️", atk: 25 },
-        null, null, null, null, null, null,
-        null, null, null, null, null, null,
-        null, null, null, null, null, null,
-        null, null, null, null, null, null,
-        null, null
-    ],
+    // 捲動控制狀態
+    scrollY: 0,
+    maxScrollY: 0,
+    isDragging: false,
+    lastTouchY: 0,
+    dragPointerId: null,
     
-    armorSlots: [
-        { name: "布製皮甲", icon: "👕", def: 5 },
-        { name: "騎士盾牌", icon: "🛡️", def: 15 },
-        null, null, null, null, null, null,
-        null, null, null, null, null, null,
-        null, null, null, null, null, null,
-        null, null, null, null, null, null,
-        null, null
-    ]
+    // 建立 4x7 = 28 格的空陣列 (完全清空)
+    weaponSlots: new Array(28).fill(null),
+    armorSlots: new Array(28).fill(null)
 };
 
 const moveJoy = { active: false, originX: 0, originY: 0, stickX: 0, stickY: 0, maxDist: 39, opacity: 0 };
@@ -91,8 +82,24 @@ let atkPointerId = null;
 const attacks = [];
 
 /* =========================
-   輸入監聽 (背包 + 雙搖桿)
+   輸入監聽 (支援滑鼠滾輪與觸控拖曳)
 ========================= */
+// 支援電腦滑鼠滾輪捲動背包
+canvas.addEventListener("wheel", e => {
+    if (!inventory.open) return;
+    const btnSize = 48;
+    const panelW = Math.min(280, cw - 32); 
+    const panelX = cw - panelW - 16; 
+    const panelY = btnSize + 32; 
+    const panelH = ch - panelY - 16;
+
+    if (e.clientX >= panelX && e.clientX <= panelX + panelW &&
+        e.clientY >= panelY && e.clientY <= panelY + panelH) {
+        inventory.scrollY += e.deltaY;
+        inventory.scrollY = Math.max(0, Math.min(inventory.maxScrollY, inventory.scrollY));
+    }
+});
+
 canvas.addEventListener("pointerdown", e => {
     canvas.setPointerCapture(e.pointerId);
 
@@ -100,43 +107,51 @@ canvas.addEventListener("pointerdown", e => {
     const btnX = cw - btnSize - 16;
     const btnY = 16;
 
-    // 1. 檢查右上角背包按鈕
+    // 1. 右上角背包按鈕
     if (e.clientX >= btnX && e.clientX <= btnX + btnSize &&
         e.clientY >= btnY && e.clientY <= btnY + btnSize) {
         inventory.open = !inventory.open; 
         return;
     }
 
-    // 2. 處理背包內部點擊 (背包開啟時)
+    // 2. 背包內部點擊與滑動
     if (inventory.open) {
-        // === [修改處] 統一面板尺寸計算邏輯 ===
         const panelW = Math.min(280, cw - 32); 
         const panelX = cw - panelW - 16; 
         const panelY = btnY + btnSize + 16; 
-        const panelH = ch - panelY - 16; // 高度延伸至畫面最底
+        const panelH = ch - panelY - 16; 
 
-        // 點擊關閉按鈕 [X]
+        // 關閉按鈕
         if (e.clientX >= panelX + panelW - 40 && e.clientX <= panelX + panelW &&
             e.clientY >= panelY && e.clientY <= panelY + 40) {
             inventory.open = false;
             return;
         }
 
-        // 點擊 "武器" 分頁
-        if (e.clientX >= panelX + 16 && e.clientX <= panelX + 96 &&
-            e.clientY >= panelY + 40 && e.clientY <= panelY + 68) {
-            inventory.currentTab = "weapon";
+        // 分頁切換 (切換時將捲軸歸零)
+        if (e.clientY >= panelY + 40 && e.clientY <= panelY + 68) {
+            if (e.clientX >= panelX + 16 && e.clientX <= panelX + 96) {
+                inventory.currentTab = "weapon";
+                inventory.scrollY = 0; 
+                return;
+            } else if (e.clientX >= panelX + 104 && e.clientX <= panelX + 184) {
+                inventory.currentTab = "armor";
+                inventory.scrollY = 0; 
+                return;
+            }
+        }
+
+        // 偵測是否按在「可捲動物品區」準備拖曳
+        const gridAreaY = panelY + 84;
+        if (e.clientX >= panelX && e.clientX <= panelX + panelW &&
+            e.clientY >= gridAreaY && e.clientY <= panelY + panelH) {
+            inventory.isDragging = true;
+            inventory.lastTouchY = e.clientY;
+            inventory.dragPointerId = e.pointerId;
             return;
         }
 
-        // 點擊 "防具" 分頁
-        if (e.clientX >= panelX + 104 && e.clientX <= panelX + 184 &&
-            e.clientY >= panelY + 40 && e.clientY <= panelY + 68) {
-            inventory.currentTab = "armor";
-            return;
-        }
-
-        // 如果點在背包面板內，阻擋搖桿觸發
+        // 只要點在面板內，就不觸發底下搖桿
         if (e.clientX >= panelX && e.clientX <= panelX + panelW &&
             e.clientY >= panelY && e.clientY <= panelY + panelH) {
             return;
@@ -167,6 +182,15 @@ canvas.addEventListener("pointerdown", e => {
 });
 
 canvas.addEventListener("pointermove", e => {
+    // 處理背包捲動滑動
+    if (inventory.open && inventory.isDragging && e.pointerId === inventory.dragPointerId) {
+        const deltaY = inventory.lastTouchY - e.clientY;
+        inventory.scrollY += deltaY;
+        inventory.scrollY = Math.max(0, Math.min(inventory.maxScrollY, inventory.scrollY));
+        inventory.lastTouchY = e.clientY;
+        return;
+    }
+
     if (e.pointerId === movePointerId && moveJoy.active) {
         updateMoveJoy(e.clientX, e.clientY);
     } else if (e.pointerId === atkPointerId && atkJoy.active) {
@@ -175,6 +199,11 @@ canvas.addEventListener("pointermove", e => {
 });
 
 function handlePointerUp(e) {
+    if (inventory.isDragging && e.pointerId === inventory.dragPointerId) {
+        inventory.isDragging = false;
+        inventory.dragPointerId = null;
+    }
+
     if (e.pointerId === movePointerId) {
         moveJoy.active = false;
         movePointerId = null;
@@ -384,19 +413,17 @@ function drawPlayer() {
     }
 }
 
-// === [重點修改處] 動態計算 UI 排版並修復文字對齊 ===
+// === [重點修改處] 動態對齊寬度與捲動遮罩 ===
 function drawInventoryUI() {
     const btnSize = 48;
     const btnX = cw - btnSize - 16;
     const btnY = 16;
 
-    // 繪製右上角背包按鈕
     ctx.fillStyle = inventory.open ? "#e74c3c" : "rgba(30, 41, 59, 0.85)";
     ctx.beginPath(); ctx.roundRect(btnX, btnY, btnSize, btnSize, 12); ctx.fill();
     ctx.strokeStyle = "rgba(255,255,255,0.3)"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.roundRect(btnX, btnY, btnSize, btnSize, 12); ctx.stroke();
     
-    // 修復文字置中 (Emoji 有時會有少許偏移，+2補償)
     ctx.font = "24px system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -404,11 +431,10 @@ function drawInventoryUI() {
 
     if (!inventory.open) return;
 
-    // 自動撐滿高度的計算
     const panelW = Math.min(280, cw - 32);
     const panelX = cw - panelW - 16; 
     const panelY = btnY + btnSize + 16; 
-    const panelH = ch - panelY - 16; // 向下延伸，保留 16px 邊界
+    const panelH = ch - panelY - 16; 
 
     // 背景面板
     ctx.fillStyle = "rgba(30, 41, 59, 0.95)";
@@ -416,7 +442,6 @@ function drawInventoryUI() {
     ctx.strokeStyle = "#475569"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.roundRect(panelX, panelY, panelW, panelH, 16); ctx.stroke();
 
-    // 標題與關閉按鈕
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 16px system-ui, sans-serif";
     ctx.textAlign = "left";
@@ -427,7 +452,6 @@ function drawInventoryUI() {
     ctx.textAlign = "center";
     ctx.fillText("✖", panelX + panelW - 22, panelY + 24);
 
-    // 分頁 Tabs
     const isWeapon = inventory.currentTab === "weapon";
 
     ctx.fillStyle = isWeapon ? "#3b82f6" : "#334155";
@@ -442,51 +466,78 @@ function drawInventoryUI() {
     ctx.fillStyle = "#ffffff";
     ctx.fillText("🛡️ 防具", panelX + 144, panelY + 55);
 
-    /* --- 動態計算 4寬 x 7高 的網格尺寸 --- */
+    /* --- 動態計算 4寬 對齊的網格尺寸 --- */
     const slotGap = 6;
     const gridPaddingX = 16;
-    const gridPaddingBottom = 16;
-    const topOffset = 84; // Tabs 佔用的上方高度
+    const topOffset = 84; 
+    const gridAreaH = panelH - topOffset - 16; // 可視區域高度
 
+    // 強制以寬度為主計算完美的格子大小
     const availableW = panelW - (gridPaddingX * 2);
-    const availableH = panelH - topOffset - gridPaddingBottom;
+    const slotSize = Math.floor((availableW - (inventory.cols - 1) * slotGap) / inventory.cols);
 
-    // 取寬度或高度中，能容納網格的最適合大小 (保證格子一定是正方形)
-    const maxSlotW = (availableW - (inventory.cols - 1) * slotGap) / inventory.cols;
-    const maxSlotH = (availableH - (inventory.rows - 1) * slotGap) / inventory.rows;
-    const slotSize = Math.floor(Math.min(maxSlotW, maxSlotH));
-
-    // 計算整個網格的總寬高，讓它在可用區域內完美置中
+    // 重新校正開始 X，保證左右邊緣絕對對齊
     const gridTotalW = inventory.cols * slotSize + (inventory.cols - 1) * slotGap;
-    const gridTotalH = inventory.rows * slotSize + (inventory.rows - 1) * slotGap;
-    const gridStartX = panelX + (panelW - gridTotalW) / 2;
-    const gridStartY = panelY + topOffset + (availableH - gridTotalH) / 2;
+    const gridStartX = panelX + (panelW - gridTotalW) / 2; 
 
     const currentSlots = isWeapon ? inventory.weaponSlots : inventory.armorSlots;
+    const totalRows = Math.ceil(currentSlots.length / inventory.cols);
+    const gridTotalH = totalRows * slotSize + (totalRows - 1) * slotGap;
 
-    for (let r = 0; r < inventory.rows; r++) {
-        for (let c = 0; c < inventory.cols; c++) {
-            const index = r * inventory.cols + c;
-            const sx = gridStartX + c * (slotSize + slotGap);
-            const sy = gridStartY + r * (slotSize + slotGap);
+    // 計算最大捲動距離並修正目前捲動值
+    inventory.maxScrollY = Math.max(0, gridTotalH - gridAreaH);
+    inventory.scrollY = Math.max(0, Math.min(inventory.maxScrollY, inventory.scrollY));
 
-            // 繪製格子
-            ctx.fillStyle = "rgba(15, 23, 42, 0.8)";
-            ctx.beginPath(); ctx.roundRect(sx, sy, slotSize, slotSize, 6); ctx.fill();
-            ctx.strokeStyle = "#334155"; ctx.lineWidth = 1.5;
-            ctx.beginPath(); ctx.roundRect(sx, sy, slotSize, slotSize, 6); ctx.stroke();
+    // === 開始繪製遮罩 (Clip) 區塊，讓捲動超出範圍的被切掉 ===
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(panelX, panelY + topOffset, panelW, gridAreaH);
+    ctx.clip();
 
-            // 繪製格子內的道具圖示
-            const item = currentSlots[index];
-            if (item) {
-                // 字體大小隨格子尺寸動態縮放
-                const fontSize = Math.max(14, Math.floor(slotSize * 0.5));
-                ctx.font = fontSize + "px system-ui, sans-serif";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText(item.icon, sx + slotSize / 2, sy + slotSize / 2 + 2); // +2 微調 Emoji 視覺居中
-            }
+    // 加上 scrollY 偏移量計算真正的起點 Y
+    const gridStartY = panelY + topOffset - inventory.scrollY;
+
+    for (let i = 0; i < currentSlots.length; i++) {
+        const r = Math.floor(i / inventory.cols);
+        const c = i % inventory.cols;
+        const sx = gridStartX + c * (slotSize + slotGap);
+        const sy = gridStartY + r * (slotSize + slotGap);
+
+        // 如果超出視圖外就不畫，優化效能
+        if (sy + slotSize < panelY + topOffset || sy > panelY + panelH) continue;
+
+        ctx.fillStyle = "rgba(15, 23, 42, 0.8)";
+        ctx.beginPath(); ctx.roundRect(sx, sy, slotSize, slotSize, 6); ctx.fill();
+        ctx.strokeStyle = "#334155"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.roundRect(sx, sy, slotSize, slotSize, 6); ctx.stroke();
+
+        const item = currentSlots[i];
+        if (item) {
+            const fontSize = Math.max(14, Math.floor(slotSize * 0.5));
+            ctx.font = fontSize + "px system-ui, sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(item.icon, sx + slotSize / 2, sy + slotSize / 2 + 2); 
         }
+    }
+    
+    ctx.restore(); // 結束遮罩區域
+
+    // 繪製捲軸指示條 (如果內容超過視窗高度)
+    if (inventory.maxScrollY > 0) {
+        const sbW = 4;
+        const sbX = panelX + panelW - 8;
+        const sbY = panelY + topOffset;
+        const thumbH = Math.max(20, (gridAreaH / gridTotalH) * gridAreaH);
+        const thumbY = sbY + (inventory.scrollY / inventory.maxScrollY) * (gridAreaH - thumbH);
+
+        // 捲軸底軌
+        ctx.fillStyle = "rgba(255,255,255,0.1)";
+        ctx.beginPath(); ctx.roundRect(sbX, sbY, sbW, gridAreaH, 2); ctx.fill();
+
+        // 捲軸滑塊
+        ctx.fillStyle = "rgba(255,255,255,0.4)";
+        ctx.beginPath(); ctx.roundRect(sbX, thumbY, sbW, thumbH, 2); ctx.fill();
     }
 }
 
