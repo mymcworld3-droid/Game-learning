@@ -50,17 +50,15 @@ sprites.skillMoyan.src = "asset/skills/魔炎熾魂刀技能.jpeg";
 /* =========================
    武器與遊戲物件狀態
 ========================= */
-// === 修改處：細化武器屬性，方便UI排版 ===
 const WEAPON_DB = {
     "moyan": {
         id: "moyan",
         name: "魔炎熾魂刀",
-        rarity: "史詩", // 新增稀有度
+        rarity: "神話", // === 修改處：改為神話級 ===
         icon: sprites.weaponMoyan,
         skillIcon: sprites.skillMoyan,
-        skillName: "魔焰地獄", // 新增技能名稱
-        basicAtkDesc: "火屬性傷害 (攻擊力*2)",
-        atkSpeedDesc: "間隔 0.75 秒",
+        skillName: "魔焰地獄", 
+        // 普攻傷害與間隔改由系統自動計算，不再寫死字串
         skillDesc: "拖曳施放，瞬移到指定位置並釋放火海(攻擊*2傷害，燃燒5秒，沉默1秒)。",
         passiveDesc: "擊中目標獲1層魔炎(+4%攻速, +20攻擊)最疊5層，持續5秒。",
         baseAtkMult: 2,
@@ -165,13 +163,31 @@ function updateSkillButtonsPosition() {
 }
 resizeCanvas();
 
-// === 輔助函式：計算物品詳情彈窗的座標 ===
 function getDetailBounds(panelX, panelY, panelW, panelH) {
-    const detailH = 360; // 加大高度以容納新排版
+    const detailH = 360; 
     const detailW = panelW - 24;
     const detailX = panelX + 12;
     const detailY = Math.max(panelY + 10, panelY + (panelH - detailH) / 2);
     return { detailX, detailY, detailW, detailH };
+}
+
+// === 新增：根據稀有度回傳顏色 (支援神話動態彩色) ===
+function getRarityStyle(ctx, rarity, x, y, w, h, alpha = 1) {
+    if (rarity === "神話") {
+        let time = Date.now() * 0.1; // 彩色流動速度
+        let grad = ctx.createLinearGradient(x, y, x + w, y + h);
+        grad.addColorStop(0, `hsla(${time % 360}, 100%, 65%, ${alpha})`);
+        grad.addColorStop(0.5, `hsla(${(time + 60) % 360}, 100%, 65%, ${alpha})`);
+        grad.addColorStop(1, `hsla(${(time + 120) % 360}, 100%, 65%, ${alpha})`);
+        return grad;
+    } else if (rarity === "傳說") {
+        return `rgba(250, 204, 21, ${alpha})`; // 金色
+    } else if (rarity === "史詩") {
+        return `rgba(192, 132, 252, ${alpha})`; // 紫色
+    } else if (rarity === "稀有") {
+        return `rgba(56, 189, 248, ${alpha})`; // 藍色
+    }
+    return `rgba(203, 213, 225, ${alpha})`; // 普通/預設
 }
 
 /* =========================
@@ -192,21 +208,17 @@ canvas.addEventListener("pointerdown", e => {
     if (inventory.open) {
         const panelW = Math.min(280, cw - 32), panelX = cw - panelW - 16, panelY = btnY + btnSize + 16, panelH = ch - panelY - 16; 
         
-        // 點擊關閉按鈕
         if (e.clientX >= panelX + panelW - 40 && e.clientX <= panelX + panelW && e.clientY >= panelY && e.clientY <= panelY + 40) {
             inventory.open = false; return;
         }
 
-        // 處理物品詳情介面
         if (inventory.selectedSlotIndex !== null) {
             const { detailX, detailY, detailW, detailH } = getDetailBounds(panelX, panelY, panelW, panelH);
             
-            // 點擊返回(關閉詳情)
             if (e.clientX >= detailX + detailW - 30 && e.clientX <= detailX + detailW && e.clientY >= detailY && e.clientY <= detailY + 30) {
                 inventory.selectedSlotIndex = null; return;
             }
             
-            // 點擊裝配 1, 2, 3
             if (e.clientY >= detailY + detailH - 45 && e.clientY <= detailY + detailH - 15) {
                 const btnW = (detailW - 32) / 3;
                 for (let i=0; i<3; i++) {
@@ -226,7 +238,7 @@ canvas.addEventListener("pointerdown", e => {
                     }
                 }
             }
-            return; // 點擊在詳情內其他地方則攔截
+            return; 
         }
 
         const tabW = (panelW - 32 - 8) / 2; 
@@ -712,7 +724,6 @@ function drawPlayer() {
     }
 }
 
-// === 輔助函式：自動換行繪製文字 ===
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
     if (!text) return y;
     let words = text.split('');
@@ -790,10 +801,22 @@ function drawInventoryUI() {
 
         if (sy + slotSize < panelY + topOffset || sy > panelY + panelH) continue;
 
-        ctx.fillStyle = "rgba(15, 23, 42, 0.8)"; ctx.beginPath(); ctx.roundRect(sx, sy, slotSize, slotSize, 6); ctx.fill();
-        ctx.strokeStyle = "#334155"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.roundRect(sx, sy, slotSize, slotSize, 6); ctx.stroke();
-
         const item = currentSlots[i];
+        
+        // === 修改處：背包物品槽根據稀有度變更背景與邊框 ===
+        if (item) {
+            ctx.fillStyle = getRarityStyle(ctx, item.rarity, sx, sy, slotSize, slotSize, 0.25);
+            ctx.beginPath(); ctx.roundRect(sx, sy, slotSize, slotSize, 6); ctx.fill();
+            ctx.strokeStyle = getRarityStyle(ctx, item.rarity, sx, sy, slotSize, slotSize, 0.8);
+        } else {
+            ctx.fillStyle = "rgba(15, 23, 42, 0.8)";
+            ctx.beginPath(); ctx.roundRect(sx, sy, slotSize, slotSize, 6); ctx.fill();
+            ctx.strokeStyle = "#334155";
+        }
+        
+        ctx.lineWidth = 1.5; 
+        ctx.beginPath(); ctx.roundRect(sx, sy, slotSize, slotSize, 6); ctx.stroke();
+
         if (item) {
             if (item.icon && item.icon.complete) {
                 ctx.drawImage(item.icon, sx + 2, sy + 2, slotSize - 4, slotSize - 4);
@@ -846,20 +869,30 @@ function drawInventoryUI() {
             const iconSize = 48;
             ctx.drawImage(item.icon, detailX + 16, detailY + 16, iconSize, iconSize);
             
-            ctx.fillStyle = "#f1c40f"; ctx.font = "bold 18px system-ui"; ctx.textAlign="left"; ctx.textBaseline="top";
+            // === 修改處：名稱套用稀有度顏色 ===
+            ctx.font = "bold 18px system-ui"; ctx.textAlign="left"; ctx.textBaseline="top";
+            let nameW = ctx.measureText(item.name).width;
+            ctx.fillStyle = getRarityStyle(ctx, item.rarity, detailX + 16 + iconSize + 12, detailY + 18, nameW, 18);
             ctx.fillText(item.name, detailX + 16 + iconSize + 12, detailY + 18);
             
             // 2. 右側稀有度
-            ctx.fillStyle = "#c084fc"; // 史詩紫
+            // === 修改處：稀有度套用專屬漸層顏色 ===
             ctx.font = "bold 14px system-ui"; ctx.textAlign="right";
-            ctx.fillText(item.rarity || "史詩", detailX + detailW - 36, detailY + 20);
+            let rarityStr = item.rarity || "普通";
+            let rarityW = ctx.measureText(rarityStr).width;
+            ctx.fillStyle = getRarityStyle(ctx, item.rarity, detailX + detailW - 16 - rarityW, detailY + 20, rarityW, 14);
+            ctx.fillText(rarityStr, detailX + detailW - 16, detailY + 20);
             
             // 3. 普攻與速度
             let cy = detailY + 16 + iconSize + 20;
             ctx.fillStyle = "#cbd5e1"; ctx.font = "14px system-ui"; ctx.textAlign="left";
-            ctx.fillText("普攻傷害：" + item.basicAtkDesc, detailX + 16, cy);
+            // === 修改處：自動計算最終傷害 ===
+            let finalDmg = Math.floor(player.atk * (item.baseAtkMult || 1));
+            ctx.fillText("普攻傷害：" + finalDmg, detailX + 16, cy);
             cy += 22;
-            ctx.fillText("攻擊速度：" + item.atkSpeedDesc, detailX + 16, cy);
+            // === 修改處：攻擊間隔只顯示純數字 ===
+            let speedSec = item.atkInterval ? (item.atkInterval / 1000).toFixed(2) : "1.00";
+            ctx.fillText("攻擊間隔：" + speedSec, detailX + 16, cy);
             cy += 30;
             
             // 4. 技能區 (名稱、圖片、文字換行說明)
@@ -871,10 +904,8 @@ function drawInventoryUI() {
             ctx.drawImage(item.skillIcon, detailX + 16, cy, skillIconSize, skillIconSize);
             
             ctx.fillStyle = "#94a3b8"; ctx.font = "13px system-ui";
-            // 圖片右側顯示技能文字並自動換行
             cy = wrapText(ctx, item.skillDesc, detailX + 16 + skillIconSize + 12, cy, detailW - 32 - skillIconSize - 12, 18);
             
-            // 確保 y 座標至少跳過圖片高度
             cy = Math.max(cy, detailY + 16 + iconSize + 20 + 22 + 30 + 24 + skillIconSize + 10);
             
             // 5. 被動區
