@@ -590,7 +590,6 @@ function drawPlayerUI() {
     }
 }
 
-// === 修改處：保持圖片原始比例，並將旋轉原點設於圖片左下角 ===
 function drawEquippedWeapon(worldX, worldY, angle) {
     let currentWeapon = player.equippedWeapons[player.activeWeaponSlot];
     if (currentWeapon && currentWeapon.icon && currentWeapon.icon.complete && currentWeapon.icon.naturalWidth !== 0) {
@@ -598,26 +597,22 @@ function drawEquippedWeapon(worldX, worldY, angle) {
         ctx.translate(worldX, worldY);
         ctx.rotate(angle + Math.PI / 4); 
         
-        // 保持比例 (正方形)，設定大小
         const size = 35;
-        // 將圖片繪製原點設定在左下角，即 (0, -size)
         ctx.drawImage(currentWeapon.icon, 0, -size, size, size); 
         ctx.restore();
     }
 }
 
+// === 修改處：取消手和眼睛的平滑過渡（緩動），改為瞬間鎖定目標角度 ===
 function drawPlayer() {
     const px = player.x, py = player.y;
+    
+    // 如果沒有在拖曳技能，則根據攻擊或移動搖桿直接賦值角度 (不再做 angleDiff 漸變)
     if (!skillDrag.active) {
         if (atkJoy.isDragging) {
-            let angleDiff = atkJoy.angle - handAngle;
-            angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
-            handAngle += angleDiff * 0.3; 
+            handAngle = atkJoy.angle;
         } else if (dx !== 0 || dy !== 0) {
-            let targetAngle = Math.atan2(dy, dx);
-            let angleDiff = targetAngle - handAngle;
-            angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
-            handAngle += angleDiff * 0.15; 
+            handAngle = Math.atan2(dy, dx);
         }
     }
 
