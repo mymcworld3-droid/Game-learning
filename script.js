@@ -261,38 +261,60 @@ function drawPlayerUI() {
     const barStartX = cx + levelRadius + gap;
     const barStartY = cy - (hpHeight + energyHeight + barSpacing) / 2;
 
+    // === [新增] 定義圓角半徑 ===
+    const hpRadius = 3.5; // 血條圓角 (高度7的一半，呈現膠囊狀)
+    const energyRadius = 1.5; // 能量條圓角
+
     // [HP 背景]
     ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; 
-    ctx.fillRect(barStartX, barStartY, barWidth, hpHeight);
-    
+    ctx.beginPath();
+    ctx.roundRect(barStartX, barStartY, barWidth, hpHeight, hpRadius);
+    ctx.fill();
+
     // [HP 緩衝特效 (白色)]
+    // 確保寬度大於0，避免數值異常
+    let displayHpWidth = Math.max(0, barWidth * (player.displayHp / player.maxHp));
     ctx.fillStyle = "#ffffff"; 
-    ctx.fillRect(barStartX, barStartY, barWidth * (player.displayHp / player.maxHp), hpHeight);
-    
-    // === [修改處] HP 當前血量 (改成綠色) ===
-    ctx.fillStyle = "#2ecc71"; // 經典的生命值綠色
-    ctx.fillRect(barStartX, barStartY, barWidth * (player.hp / player.maxHp), hpHeight);
-    
+    ctx.beginPath();
+    ctx.roundRect(barStartX, barStartY, displayHpWidth, hpHeight, hpRadius);
+    ctx.fill();
+
+    // [HP 當前血量 (綠色)]
+    let hpWidth = Math.max(0, barWidth * (player.hp / player.maxHp));
+    ctx.fillStyle = "#2ecc71"; 
+    ctx.beginPath();
+    ctx.roundRect(barStartX, barStartY, hpWidth, hpHeight, hpRadius);
+    ctx.fill();
+
     // [HP 邊框]
     ctx.strokeStyle = "rgba(0,0,0,0.8)"; 
     ctx.lineWidth = 1.5; 
-    ctx.strokeRect(barStartX, barStartY, barWidth, hpHeight);
+    ctx.beginPath();
+    ctx.roundRect(barStartX, barStartY, barWidth, hpHeight, hpRadius);
+    ctx.stroke();
 
     // [能量 背景]
     const energyStartY = barStartY + hpHeight + barSpacing;
     ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; 
-    ctx.fillRect(barStartX, energyStartY, barWidth, energyHeight);
-    
+    ctx.beginPath();
+    ctx.roundRect(barStartX, energyStartY, barWidth, energyHeight, energyRadius);
+    ctx.fill();
+
     // [能量 當前值 (橘色)]
+    let energyWidth = Math.max(0, barWidth * (player.energy / player.maxEnergy));
     ctx.fillStyle = "#f39c12"; 
-    ctx.fillRect(barStartX, energyStartY, barWidth * (player.energy / player.maxEnergy), energyHeight);
-    
+    ctx.beginPath();
+    ctx.roundRect(barStartX, energyStartY, energyWidth, energyHeight, energyRadius);
+    ctx.fill();
+
     // [能量 邊框]
     ctx.strokeStyle = "rgba(0,0,0,0.8)"; 
     ctx.lineWidth = 1; 
-    ctx.strokeRect(barStartX, energyStartY, barWidth, energyHeight);
+    ctx.beginPath();
+    ctx.roundRect(barStartX, energyStartY, barWidth, energyHeight, energyRadius);
+    ctx.stroke();
 
-    // [等級圓圈]
+    // [等級圓圈] (後畫圓圈，讓它可以稍微蓋在血條邊緣上，增加立體感)
     ctx.fillStyle = "#2c3e50"; 
     ctx.beginPath(); 
     ctx.arc(cx, cy, levelRadius, 0, Math.PI * 2); 
