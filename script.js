@@ -162,20 +162,12 @@ function updateSkillButtonsPosition() {
 }
 resizeCanvas();
 
-// === 修改處：將彈窗固定在背包左側，高度不受物品影響 ===
 function getDetailBounds(panelX, panelY, panelW, panelH) {
     const detailH = 360; 
-    const detailW = 260; // 固定寬度
-    
-    // 將 X 座標設定在背包面板的左邊
+    const detailW = 260; 
     let detailX = panelX - detailW - 16;
-    
-    // 如果螢幕過窄導致左邊超出畫面，強行靠齊畫面左邊緣 (16px)
     if (detailX < 16) detailX = 16;
-    
-    // 高度(Y)直接固定與背包面板的頂端切齊，不再隨點擊格子的高低變化
     const detailY = panelY; 
-    
     return { detailX, detailY, detailW, detailH };
 }
 
@@ -219,17 +211,13 @@ canvas.addEventListener("pointerdown", e => {
             inventory.open = false; return;
         }
 
-        // === 修改處：處理彈窗獨立在左側時的點擊邏輯 ===
         if (inventory.selectedSlotIndex !== null) {
             const { detailX, detailY, detailW, detailH } = getDetailBounds(panelX, panelY, panelW, panelH);
             
-            // 判斷是否點擊在彈窗範圍內
             if (e.clientX >= detailX && e.clientX <= detailX + detailW && e.clientY >= detailY && e.clientY <= detailY + detailH) {
-                // 點擊關閉按鈕
                 if (e.clientX >= detailX + detailW - 30 && e.clientY <= detailY + 30) {
                     inventory.selectedSlotIndex = null; 
                 } 
-                // 點擊裝配 1, 2, 3
                 else if (e.clientY >= detailY + detailH - 45 && e.clientY <= detailY + detailH - 15) {
                     const btnW = (detailW - 32) / 3;
                     for (let i=0; i<3; i++) {
@@ -249,10 +237,9 @@ canvas.addEventListener("pointerdown", e => {
                         }
                     }
                 }
-                return; // 如果點在彈窗內就攔截，不觸發背包後方物件
+                return; 
             }
             
-            // 如果點擊不在彈窗內，自動關閉彈窗，並允許繼續觸發背包內的物品點擊
             inventory.selectedSlotIndex = null;
         }
 
@@ -498,7 +485,6 @@ function update() {
     }
 }
 
-// === 修改處：記錄這發攻擊是否有攜帶武器 ===
 function spawnFist(angle) {
     let hasWeapon = player.equippedWeapons[player.activeWeaponSlot] !== null;
     attacks.push({ 
@@ -524,7 +510,7 @@ function draw() {
 
     drawEffects();
     
-    // === 新增：繪製攻擊時的普攻判定範圍 ===
+    // 繪製普攻範圍 (按住攻擊鍵時常駐顯示)
     drawAttackRanges();
     
     drawSkillIndicators();
@@ -544,32 +530,32 @@ function draw() {
    繪製函式細節
 ========================= */
 
-// === 新增：繪製普攻範圍 (扇形/方形) ===
+// === 修改處：綁定搖桿狀態，按下才出現，放開就消失 (不淡出) ===
 function drawAttackRanges() {
-    attacks.forEach(atk => {
-        let p = atk.progress;
-        if (p >= 1) return;
-        
-        let alpha = 0.4 * (1 - p); // 動態淡出
+    if (atkJoy.active && !inventory.open && !skillDrag.active) {
+        let currentWeapon = player.equippedWeapons[player.activeWeaponSlot];
+        let hasWeapon = currentWeapon !== null && typeof currentWeapon !== 'undefined';
         
         ctx.save();
-        ctx.translate(atk.x, atk.y);
-        ctx.rotate(atk.angle);
+        ctx.translate(player.x, player.y);
+        let angle = atkJoy.isDragging ? atkJoy.angle : handAngle;
+        ctx.rotate(angle);
         
-        ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.4})`;
-        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 1.5})`;
+        // 固定的顏色與透明度，不進行淡出
+        ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
         ctx.lineWidth = 2;
         ctx.beginPath();
         
-        if (atk.hasWeapon) {
-            // 武器：繪製 120 度的扇形範圍
+        if (hasWeapon) {
+            // 武器：繪製扇形
             let radius = 110; 
             let spread = Math.PI / 1.5; 
             ctx.moveTo(0, 0);
             ctx.arc(0, 0, radius, -spread/2, spread/2);
             ctx.closePath();
         } else {
-            // 拳頭：繪製前方的方形範圍
+            // 拳頭：繪製方形
             let size = 80;
             ctx.rect(0, -size/2, size, size);
         }
@@ -577,7 +563,7 @@ function drawAttackRanges() {
         ctx.fill();
         ctx.stroke();
         ctx.restore();
-    });
+    }
 }
 
 function drawSkillIndicators() {
