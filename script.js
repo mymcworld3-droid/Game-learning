@@ -60,9 +60,8 @@ const WEAPON_DB = {
         baseAtkMult: 2,
         atkInterval: 750, 
         skillCooldown: 8000,
-        // 新增技能範圍設定
-        skillMaxRange: 250,   // 最遠施法距離
-        skillAoERadius: 120   // 火海範圍半徑
+        skillMaxRange: 250,   
+        skillAoERadius: 120   
     }
 };
 
@@ -106,7 +105,6 @@ inventory.weaponSlots[0] = WEAPON_DB["moyan"];
 const moveJoy = { active: false, originX: 0, originY: 0, stickX: 0, stickY: 0, maxDist: 39, opacity: 0 };
 const atkJoy  = { active: false, originX: 0, originY: 0, opacity: 0.3, angle: 0, isDragging: false };
 
-// --- 技能拖曳狀態管理 ---
 const skillDrag = { 
     active: false, 
     slotIndex: -1, 
@@ -124,7 +122,6 @@ let movePointerId = null, atkPointerId = null;
 const attacks = [];
 const effects = []; 
 
-// === 修改處：加大技能按鍵半徑到 35 ===
 const skillBtns = [
     { x: 0, y: 0, radius: 35 },
     { x: 0, y: 0, radius: 35 },
@@ -132,20 +129,16 @@ const skillBtns = [
 ];
 
 function updateSkillButtonsPosition() {
-    // === 修改處：完美環繞普攻按鍵，加寬間距 ===
     const atkX = cw - JOYSTICK_RADIUS - 40; 
     const atkY = ch - JOYSTICK_RADIUS - 40; 
-    const arcRadius = 160; // 距離普攻按鍵中心的半徑(距離)
+    const arcRadius = 160; 
 
-    // 技能 1 (最左側)
     skillBtns[0].x = atkX - arcRadius; 
     skillBtns[0].y = atkY;
 
-    // 技能 2 (左上方 45度)
     skillBtns[1].x = atkX - Math.cos(Math.PI / 4) * arcRadius; 
     skillBtns[1].y = atkY - Math.sin(Math.PI / 4) * arcRadius;
 
-    // 技能 3 (正上方)
     skillBtns[2].x = atkX; 
     skillBtns[2].y = atkY - arcRadius;
 }
@@ -532,7 +525,7 @@ function drawSkillButtons() {
                 ctx.restore();
             } else {
                 ctx.fillStyle = "#fff"; 
-                ctx.font = "bold 16px system-ui"; // === 修改處：加大預設按鈕內的文字 ===
+                ctx.font = "bold 16px system-ui"; 
                 ctx.textAlign = "center"; ctx.textBaseline = "middle";
                 ctx.fillText("技", btn.x, btn.y);
             }
@@ -555,7 +548,7 @@ function drawSkillButtons() {
                 ctx.beginPath(); ctx.moveTo(btn.x, btn.y); ctx.lineTo(knobX, knobY);
                 ctx.strokeStyle = "rgba(255, 255, 255, 0.8)"; ctx.lineWidth = 3; ctx.stroke();
                 
-                ctx.beginPath(); ctx.arc(knobX, knobY, 14, 0, Math.PI*2); // === 修改處：加大拖曳中心點 ===
+                ctx.beginPath(); ctx.arc(knobX, knobY, 14, 0, Math.PI*2); 
                 ctx.fillStyle = "rgba(255, 255, 255, 0.9)"; ctx.fill();
             }
         }
@@ -597,13 +590,18 @@ function drawPlayerUI() {
     }
 }
 
+// === 修改處：保持圖片原始比例，並將旋轉原點設於圖片左下角 ===
 function drawEquippedWeapon(worldX, worldY, angle) {
     let currentWeapon = player.equippedWeapons[player.activeWeaponSlot];
     if (currentWeapon && currentWeapon.icon && currentWeapon.icon.complete && currentWeapon.icon.naturalWidth !== 0) {
         ctx.save();
         ctx.translate(worldX, worldY);
         ctx.rotate(angle + Math.PI / 4); 
-        ctx.drawImage(currentWeapon.icon, -6, -30, 12, 35); 
+        
+        // 保持比例 (正方形)，設定大小
+        const size = 35;
+        // 將圖片繪製原點設定在左下角，即 (0, -size)
+        ctx.drawImage(currentWeapon.icon, 0, -size, size, size); 
         ctx.restore();
     }
 }
