@@ -261,19 +261,51 @@ function drawPlayerUI() {
     const barStartX = cx + levelRadius + gap;
     const barStartY = cy - (hpHeight + energyHeight + barSpacing) / 2;
 
-    ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; ctx.fillRect(barStartX, barStartY, barWidth, hpHeight);
-    ctx.fillStyle = "#ffffff"; ctx.fillRect(barStartX, barStartY, barWidth * (player.displayHp / player.maxHp), hpHeight);
-    ctx.fillStyle = "#e74c3c"; ctx.fillRect(barStartX, barStartY, barWidth * (player.hp / player.maxHp), hpHeight);
-    ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 1.5; ctx.strokeRect(barStartX, barStartY, barWidth, hpHeight);
+    // [HP 背景]
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; 
+    ctx.fillRect(barStartX, barStartY, barWidth, hpHeight);
+    
+    // [HP 緩衝特效 (白色)]
+    ctx.fillStyle = "#ffffff"; 
+    ctx.fillRect(barStartX, barStartY, barWidth * (player.displayHp / player.maxHp), hpHeight);
+    
+    // === [修改處] HP 當前血量 (改成綠色) ===
+    ctx.fillStyle = "#2ecc71"; // 經典的生命值綠色
+    ctx.fillRect(barStartX, barStartY, barWidth * (player.hp / player.maxHp), hpHeight);
+    
+    // [HP 邊框]
+    ctx.strokeStyle = "rgba(0,0,0,0.8)"; 
+    ctx.lineWidth = 1.5; 
+    ctx.strokeRect(barStartX, barStartY, barWidth, hpHeight);
 
+    // [能量 背景]
     const energyStartY = barStartY + hpHeight + barSpacing;
-    ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; ctx.fillRect(barStartX, energyStartY, barWidth, energyHeight);
-    ctx.fillStyle = "#f39c12"; ctx.fillRect(barStartX, energyStartY, barWidth * (player.energy / player.maxEnergy), energyHeight);
-    ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 1; ctx.strokeRect(barStartX, energyStartY, barWidth, energyHeight);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; 
+    ctx.fillRect(barStartX, energyStartY, barWidth, energyHeight);
+    
+    // [能量 當前值 (橘色)]
+    ctx.fillStyle = "#f39c12"; 
+    ctx.fillRect(barStartX, energyStartY, barWidth * (player.energy / player.maxEnergy), energyHeight);
+    
+    // [能量 邊框]
+    ctx.strokeStyle = "rgba(0,0,0,0.8)"; 
+    ctx.lineWidth = 1; 
+    ctx.strokeRect(barStartX, energyStartY, barWidth, energyHeight);
 
-    ctx.fillStyle = "#2c3e50"; ctx.beginPath(); ctx.arc(cx, cy, levelRadius, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#f1c40f"; ctx.lineWidth = 2.5; ctx.stroke();
-    ctx.fillStyle = "#ffffff"; ctx.font = "bold 13px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    // [等級圓圈]
+    ctx.fillStyle = "#2c3e50"; 
+    ctx.beginPath(); 
+    ctx.arc(cx, cy, levelRadius, 0, Math.PI * 2); 
+    ctx.fill();
+    
+    ctx.strokeStyle = "#f1c40f"; 
+    ctx.lineWidth = 2.5; 
+    ctx.stroke();
+    
+    ctx.fillStyle = "#ffffff"; 
+    ctx.font = "bold 13px system-ui, sans-serif"; 
+    ctx.textAlign = "center"; 
+    ctx.textBaseline = "middle";
     ctx.fillText(player.level, cx, cy + 1); 
 }
 
